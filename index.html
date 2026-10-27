@@ -767,6 +767,7 @@
         window.currentGroupCode = '';
         let deferredPwaPrompt = null;
         let overviewSelectedExercise = "Bench Press";
+        let overviewExerciseOptions = [];
         let activeTrackMemberId = null;
         let chart1RMInstance = null;
         let chartRelativeInstance = null;
@@ -1133,7 +1134,7 @@
             if (!activeTrackMemberId || !members.some(m => m.id === activeTrackMemberId)) activeTrackMemberId = members[0].id;
             const member = members.find(m => m.id === activeTrackMemberId);
             const color = MEMBER_COLORS[member.colorIndex % MEMBER_COLORS.length].solid;
-            const selector = `<div class="bg-cardbg border border-cardborder rounded-2xl p-3 sm:p-4 mb-4 shadow-lg flex flex-wrap items-center gap-3"><div class="w-10 h-10 rounded-xl flex items-center justify-center bg-cyan-500/10 border border-cyan-500/30 text-cyan-300"><i class="fa-solid fa-users text-lg"></i></div><div class="flex-1 min-w-[130px]"><div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Track tạ của thành viên</div><div class="text-xs text-slate-400">Chọn người để xem hoặc nhập nhật ký</div></div><div class="relative w-full sm:w-64"><select aria-label="Chọn thành viên track tạ" onchange="selectTrackMember(this.value)" class="w-full appearance-none bg-slate-900 border border-cyan-500/40 hover:border-cyan-400 focus:border-cyan-300 rounded-xl pl-3 pr-10 py-3 text-sm font-bold text-white outline-none shadow-inner">${members.map(m => `<option value="${m.id}" ${m.id === member.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select><i class="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400 text-xs"></i></div><div class="w-2 h-2 rounded-full" style="background:${color}"></div></div>`;
+            const selector = `<div class="bg-cardbg border border-cardborder rounded-2xl p-3 sm:p-4 mb-4 shadow-lg flex flex-wrap items-center gap-3"><div class="w-10 h-10 rounded-xl flex items-center justify-center bg-cyan-500/10 border border-cyan-500/30 text-cyan-300"><i class="fa-solid fa-users text-lg"></i></div><div class="flex-1 min-w-[130px]"><div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Track tạ của thành viên</div><div class="text-xs text-slate-400">Chọn người để xem hoặc nhập nhật ký</div></div><div class="flex items-center gap-2 w-full sm:w-auto"><div class="relative flex-1 sm:w-64"><select aria-label="Chọn thành viên track tạ" onchange="selectTrackMember(this.value)" class="w-full appearance-none bg-slate-900 border border-cyan-500/40 hover:border-cyan-400 focus:border-cyan-300 rounded-xl pl-3 pr-10 py-3 text-sm font-bold text-white outline-none shadow-inner">${members.map(m => `<option value="${m.id}" ${m.id === member.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select><i class="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400 text-xs"></i></div><button type="button" title="Đổi tên thành viên" aria-label="Đổi tên thành viên" onclick="openEditMemberModal('${member.id}')" class="shrink-0 w-11 h-11 flex items-center justify-center bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 rounded-xl transition"><i class="fa-solid fa-user-pen text-sm"></i></button><button type="button" title="Xóa thành viên" aria-label="Xóa thành viên" onclick="deleteMember('${member.id}')" class="shrink-0 w-11 h-11 flex items-center justify-center bg-rose-950/80 border border-rose-800/60 hover:bg-rose-900 text-rose-400 rounded-xl transition"><i class="fa-solid fa-trash-can text-sm"></i></button></div><div class="w-2 h-2 rounded-full" style="background:${color}"></div></div>`;
             container.innerHTML = selector + '<div id="trackMemberContent"></div>';
             renderMemberTab(document.getElementById('trackMemberContent'), member);
         };
@@ -1164,6 +1165,7 @@
             if (!allExercises.includes(overviewSelectedExercise)) {
                 overviewSelectedExercise = allExercises[0];
             }
+            overviewExerciseOptions = allExercises;
 
             container.innerHTML = `
                 <div class="space-y-5">
@@ -1176,12 +1178,16 @@
                         </div>
                         
                         <div class="w-full sm:w-auto sm:min-w-[270px]">
-                            <label for="overviewExerciseSelect" class="text-[10px] uppercase tracking-widest font-extrabold text-emerald-300 mb-1.5 flex items-center gap-2"><i class="fa-solid fa-sliders"></i> Chọn bài tập để xem biểu đồ</label>
-                            <div class="relative group">
-                                <select id="overviewExerciseSelect" onchange="changeOverviewExercise(this.value)" class="appearance-none w-full bg-gradient-to-r from-slate-900 to-slate-800 border border-emerald-500/40 hover:border-emerald-400 focus:border-emerald-300 rounded-xl pl-3 pr-10 py-3 text-sm text-white font-bold shadow-inner outline-none transition">
-                                    ${allExercises.map(ex => `<option value="${ex}" ${ex === overviewSelectedExercise ? 'selected' : ''}>${ex}</option>`).join('')}
-                                </select>
-                                <i class="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400 text-xs"></i>
+                            <label for="overviewExerciseInput" class="text-[10px] uppercase tracking-widest font-extrabold text-emerald-300 mb-1.5 flex items-center gap-2"><i class="fa-solid fa-sliders"></i> Gõ tên bài tập để xem biểu đồ</label>
+                            <div class="relative predictive-input-container">
+                                <input id="overviewExerciseInput" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" value="${escapeAttrValue(overviewSelectedExercise)}" placeholder="Gõ tên bài tập..."
+                                    onfocus="this.select(); filterOverviewExercises('')"
+                                    oninput="filterOverviewExercises(this.value)"
+                                    onkeydown="overviewExerciseKey(event)"
+                                    onblur="commitOverviewExerciseInput(this)"
+                                    class="w-full bg-gradient-to-r from-slate-900 to-slate-800 border border-emerald-500/40 hover:border-emerald-400 focus:border-emerald-300 rounded-xl pl-3 pr-10 py-3 text-sm text-white font-bold shadow-inner outline-none transition">
+                                <i class="fa-solid fa-magnifying-glass pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400 text-xs"></i>
+                                <div id="pred_dropdown_overview" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto"></div>
                             </div>
                         </div>
                     </div>
@@ -1190,7 +1196,7 @@
                         <div class="bg-cardbg border border-cardborder rounded-2xl p-4 shadow-lg">
                             <div class="flex justify-between items-center mb-2">
                                 <h3 class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
-                                    <i class="fa-solid fa-chart-line text-emerald-400"></i> Tiến Trình 1RM (kg) - ${overviewSelectedExercise}
+                                    <i class="fa-solid fa-chart-line text-emerald-400"></i> Tiến Trình 1RM (kg) - <span id="overviewExTitle">${overviewSelectedExercise}</span>
                                 </h3>
                                 <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono">1RM Epley</span>
                             </div>
@@ -1382,7 +1388,78 @@
 
         function changeOverviewExercise(exName) {
             overviewSelectedExercise = exName;
+            const titleEl = document.getElementById('overviewExTitle');
+            if (titleEl) titleEl.textContent = exName;
             renderOverviewCharts(exName);
+        }
+
+        function escapeAttrValue(value) {
+            return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        }
+
+        function escapeTextValue(value) {
+            return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // Ô gõ tên bài tập ở Tổng quan: gợi ý theo chữ đang gõ, chọn bằng bấm hoặc Enter
+        let overviewExerciseFiltered = [];
+
+        function filterOverviewExercises(query) {
+            const dropdown = document.getElementById('pred_dropdown_overview');
+            if (!dropdown) return;
+            const q = (query || '').toLowerCase().trim();
+            overviewExerciseFiltered = overviewExerciseOptions.filter(n => n.toLowerCase().includes(q));
+            if (overviewExerciseFiltered.length === 0) {
+                dropdown.innerHTML = '<div class="px-3 py-2 text-xs text-slate-500">Không tìm thấy bài tập</div>';
+            } else {
+                dropdown.innerHTML = overviewExerciseFiltered.map((n, i) => `
+                    <div onmousedown="event.preventDefault()" onclick="pickOverviewExercise(${i})" class="px-3 py-2 hover:bg-slate-800 text-xs font-bold cursor-pointer border-b border-slate-800/40 last:border-0 ${n === overviewSelectedExercise ? 'text-emerald-300' : 'text-slate-200'}">${escapeTextValue(n)}</div>
+                `).join('');
+            }
+            dropdown.classList.remove('hidden');
+        }
+
+        function findOverviewExerciseMatch(text, allowFirstPartial) {
+            const typed = capitalizeExerciseName(text).toLowerCase();
+            if (!typed) return null;
+            const exact = overviewExerciseOptions.find(n => n.toLowerCase() === typed);
+            if (exact) return exact;
+            const partial = overviewExerciseOptions.filter(n => n.toLowerCase().includes(typed));
+            if (partial.length === 1) return partial[0];
+            return (allowFirstPartial && partial.length > 0) ? partial[0] : null;
+        }
+
+        function pickOverviewExercise(index) {
+            const name = overviewExerciseFiltered[index];
+            if (!name) return;
+            const input = document.getElementById('overviewExerciseInput');
+            if (input) input.value = name;
+            hideAllPredictiveDropdowns();
+            if (name !== overviewSelectedExercise) changeOverviewExercise(name);
+            if (input) input.blur();
+        }
+
+        function commitOverviewExerciseInput(inputEl) {
+            const match = findOverviewExerciseMatch(inputEl.value, false);
+            if (match) {
+                inputEl.value = match;
+                if (match !== overviewSelectedExercise) changeOverviewExercise(match);
+            } else {
+                inputEl.value = overviewSelectedExercise;
+            }
+            hideAllPredictiveDropdowns();
+        }
+
+        function overviewExerciseKey(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const match = findOverviewExerciseMatch(e.target.value, true);
+                if (match) e.target.value = match;
+                e.target.blur();
+            } else if (e.key === 'Escape') {
+                e.target.value = overviewSelectedExercise;
+                e.target.blur();
+            }
         }
 
         function renderOverviewCharts(exerciseName) {
@@ -1587,7 +1664,7 @@
                     ${scheduleAdviceHtml}
 
                     <!-- Danh sách các bài tập trong ngày -->
-                    <div class="space-y-4" id="memberExercisesContainer">
+                    <div class="space-y-2.5" id="memberExercisesContainer">
                         ${renderMemberExerciseList(member, currentLog)}
                     </div>
 
@@ -1608,6 +1685,87 @@
             `;
         }
 
+        // Dự đoán mức tạ cho buổi này dựa trên các buổi trước của cùng bài tập (chỉ lấy dữ liệu của chính thành viên đó)
+        function getWeightSuggestion(member, exName, dateStr) {
+            const name = capitalizeExerciseName(exName);
+            if (!name) return null;
+            const dates = Object.keys(member.logs || {}).filter(d => d < dateStr).sort();
+            const sessions = [];
+            dates.forEach(d => {
+                let best = null;
+                ((member.logs[d] || {}).exercises || []).forEach(ex => {
+                    if (capitalizeExerciseName(ex.name) !== name) return;
+                    (ex.sets || []).forEach(st => {
+                        const w = parseFloat(st.weight);
+                        const r = parseFloat(st.reps);
+                        if (!(w > 0) || !(r > 0)) return;
+                        const rir = (st.rir === '' || st.rir === undefined || st.rir === null) ? null : parseFloat(st.rir);
+                        // 1RM ước tính có cộng số rep còn dư (RIR) nếu có ghi
+                        const eff = w * (1 + (r + (rir || 0)) / 30);
+                        if (!best || eff > best.eff) best = { date: d, weight: w, reps: r, rir: rir, eff: eff };
+                    });
+                });
+                if (best) sessions.push(best);
+            });
+            if (!sessions.length) return null;
+
+            const recent = sessions.slice(-4);
+            const last = recent[recent.length - 1];
+            let growth;
+            if (recent.length === 1) {
+                growth = 0.01;
+            } else {
+                let sum = 0;
+                for (let i = 1; i < recent.length; i++) sum += (recent[i].eff - recent[i - 1].eff) / recent[i - 1].eff;
+                growth = Math.min(0.025, Math.max(0, sum / (recent.length - 1)));
+            }
+            if (last.rir !== null && last.rir >= 3) growth = Math.max(growth, 0.02); // buổi trước còn dư sức
+            if (last.rir === 0) growth = 0; // buổi trước tập tới fail: giữ mức cũ
+
+            const e1 = last.eff * (1 + growth);
+            let weight = e1 / (1 + (last.reps + (last.rir || 0)) / 30);
+            weight = Math.max(Math.round(weight * 2) / 2, last.weight);
+            return { weight: weight, reps: last.reps, last: last, sessions: recent.length, growth: growth };
+        }
+
+        function renderSuggestionRow(member, exIndex, sug) {
+            const diff = Math.round((sug.weight - sug.last.weight) * 100) / 100;
+            const diffTxt = diff > 0 ? '+' + diff : '=';
+            const parts = sug.last.date.split('-');
+            const dd = parts.length === 3 ? `${parts[2]}/${parts[1]}` : sug.last.date;
+            const rirTxt = sug.last.rir !== null ? ` RIR ${sug.last.rir}` : '';
+            const tip = `Dựa trên ${sug.sessions} buổi gần nhất. Buổi ${dd}: ${sug.last.weight}kg x ${sug.last.reps}${rirTxt}. Xu hướng 1RM ước tính: +${(sug.growth * 100).toFixed(1)}%/buổi.`;
+            return `
+                        <div title="${tip}" class="flex items-center justify-between gap-2 bg-indigo-950/40 border border-indigo-500/30 rounded-lg px-2 py-1">
+                            <div class="text-[11px] text-indigo-200 truncate">
+                                <i class="fa-solid fa-wand-magic-sparkles text-amber-400 mr-1"></i>Gợi ý: <strong class="text-white">${sug.weight} kg × ${sug.reps}</strong>
+                                <span class="text-slate-400">(${diffTxt} so với ${dd})</span>
+                            </div>
+                            <button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.weight}, ${sug.reps})" class="shrink-0 px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[11px] font-semibold">Điền</button>
+                        </div>`;
+        }
+
+        function applyWeightSuggestion(memberId, exIndex, weight, reps) {
+            const member = window.appData.members.find(m => m.id === memberId);
+            if (!member) return;
+            const dateStr = member.selectedDate || getTodayISODate();
+            const log = member.logs[dateStr];
+            const ex = log && log.exercises[exIndex];
+            if (!ex) return;
+            let filled = 0;
+            (ex.sets || []).forEach(st => {
+                if (!st.weight) {
+                    st.weight = weight;
+                    if (!st.reps) st.reps = reps;
+                    filled++;
+                }
+            });
+            if (!filled) { showToast("Các set đã có tạ, không điền đè"); return; }
+            persistData();
+            renderContent();
+            showToast(`Đã điền gợi ý cho ${filled} set`);
+        }
+
         function renderMemberExerciseList(member, currentLog) {
             if (!currentLog.exercises || currentLog.exercises.length === 0) {
                 return `
@@ -1619,61 +1777,63 @@
                 `;
             }
 
+            const suggestDate = member.selectedDate || getTodayISODate();
             return currentLog.exercises.map((ex, exIndex) => {
-                let best1RM = 0;
-                (ex.sets || []).forEach(s => {
-                    const rm = calculate1RM(s.weight, s.reps);
-                    if (rm > best1RM) best1RM = rm;
-                });
-
+                const sug = getWeightSuggestion(member, ex.name, suggestDate);
+                const sugHtml = sug ? renderSuggestionRow(member, exIndex, sug) : '';
                 return `
-                    <div class="bg-cardbg border border-slate-500/80 rounded-2xl p-3.5 md:p-4 shadow-md space-y-3 relative">
-                        <div class="flex justify-between items-center gap-2 border-b border-slate-700 pb-2.5">
+                    <div class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
+                        <div class="flex justify-between items-center gap-2 border-b border-slate-700 pb-2">
                             <div class="flex-1 relative predictive-input-container">
                                 <input type="text" value="${ex.name || ''}" placeholder="Nhập tên bài tập..." 
                                     onfocus="showPredictiveDropdown(this, '${member.id}', ${exIndex})"
                                     oninput="handlePredictiveInput(this, '${member.id}', ${exIndex})"
                                     onchange="updateExerciseName('${member.id}', ${exIndex}, this.value)"
-                                    class="w-full max-w-xs bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-emerald-500">
+                                    class="w-full max-w-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold focus:outline-none focus:border-emerald-500">
                                 <div id="pred_dropdown_${exIndex}" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto"></div>
                             </div>
 
-                            <div class="flex items-center gap-2">
-                                <button onclick="removeExerciseFromMemberLog('${member.id}', ${exIndex})" class="text-slate-500 hover:text-rose-400 p-1 text-xs">
-                                    <i class="fa-solid fa-trash-can"></i>
-                                </button>
-                            </div>
+                            <button onclick="removeExerciseFromMemberLog('${member.id}', ${exIndex})" class="text-slate-500 hover:text-rose-400 p-1 text-xs">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
                         </div>
+
+                        ${sugHtml}
 
                         <!-- Table các Sets -->
                         <div class="overflow-x-auto">
                             <table class="w-full table-fixed text-left text-xs">
                                 <thead>
                                     <tr class="text-[10px] text-slate-400 uppercase border-b border-slate-700">
-                                        <th class="pb-2 w-10 font-semibold">SET</th>
-                                        <th class="pb-2 w-[40%] font-semibold">MỨC TẠ (KG)</th>
-                                        <th class="pb-2 w-[40%] font-semibold">REPS</th>
-                                        <th class="pb-2 w-24 font-semibold">1RM Epley</th>
-                                        <th class="pb-2 text-right w-8"></th>
+                                        <th class="pb-1 w-7 font-semibold">SET</th>
+                                        <th class="pb-1 font-semibold">TẠ (KG)</th>
+                                        <th class="pb-1 font-semibold">REPS</th>
+                                        <th class="pb-1 w-12 font-semibold text-center" title="Reps in reserve - số rep còn lại (tùy chọn)">RIR</th>
+                                        <th class="pb-1 w-[3.75rem] font-semibold">1RM</th>
+                                        <th class="pb-1 w-6"></th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-700/70">
                                     ${(ex.sets || []).map((s, setIndex) => {
                                         const estRM = calculate1RM(s.weight, s.reps);
+                                        const rirVal = (s.rir === undefined || s.rir === null) ? '' : s.rir;
                                         return `
                                             <tr>
-                                                <td class="py-2.5 font-mono font-bold text-slate-400">${setIndex + 1}</td>
-                                                <td class="py-2.5 pr-2">
-                                                    <input type="number" step="0.5" value="${s.weight || ''}" placeholder="0" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                                                <td class="py-1.5 font-mono font-bold text-slate-400">${setIndex + 1}</td>
+                                                <td class="py-1.5 pr-1.5">
+                                                    <input type="number" step="0.5" value="${s.weight || ''}" placeholder="0" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
                                                 </td>
-                                                <td class="py-2.5 pr-2">
-                                                    <input type="number" value="${s.reps || ''}" placeholder="0" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                                                <td class="py-1.5 pr-1.5">
+                                                    <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
                                                 </td>
-                                                <td class="py-2.5 font-mono text-emerald-400 text-[11px] font-semibold whitespace-nowrap">
+                                                <td class="py-1.5 pr-1.5">
+                                                    <input type="number" inputmode="decimal" min="0" max="10" step="0.5" value="${rirVal}" placeholder="-" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none focus:border-amber-500">
+                                                </td>
+                                                <td class="py-1.5 font-mono text-emerald-400 text-[10px] font-semibold whitespace-nowrap">
                                                     ${estRM > 0 ? estRM + ' kg' : '-'}
                                                 </td>
-                                                <td class="py-2.5 text-right">
-                                                    <button onclick="removeSetFromExercise('${member.id}', ${exIndex}, ${setIndex})" class="text-slate-600 hover:text-rose-400 p-1">
+                                                <td class="py-1.5 text-right">
+                                                    <button onclick="removeSetFromExercise('${member.id}', ${exIndex}, ${setIndex})" class="text-slate-600 hover:text-rose-400 p-0.5">
                                                         <i class="fa-solid fa-xmark"></i>
                                                     </button>
                                                 </td>
@@ -1684,8 +1844,8 @@
                             </table>
                         </div>
 
-                        <div>
-                            <button onclick="addSetToExercise('${member.id}', ${exIndex})" class="px-3 py-1.5 bg-transparent hover:bg-slate-800 text-emerald-400 rounded-lg text-xs font-semibold border border-slate-500 transition">
+                        <div class="pt-0.5">
+                            <button onclick="addSetToExercise('${member.id}', ${exIndex})" class="px-2.5 py-1 bg-transparent hover:bg-slate-800 text-emerald-400 rounded-lg text-[11px] font-semibold border border-slate-500 transition">
                                 + Thêm Set
                             </button>
                         </div>
@@ -1825,7 +1985,12 @@
                 const dateStr = member.selectedDate || getTodayISODate();
                 const log = member.logs[dateStr];
                 if (log && log.exercises[exIndex] && log.exercises[exIndex].sets[setIndex]) {
-                    log.exercises[exIndex].sets[setIndex][field] = parseFloat(val) || '';
+                    if (field === 'rir') {
+                        const n = parseFloat(val);
+                        log.exercises[exIndex].sets[setIndex].rir = isNaN(n) ? '' : Math.min(10, Math.max(0, n));
+                    } else {
+                        log.exercises[exIndex].sets[setIndex][field] = parseFloat(val) || '';
+                    }
                     persistData();
                     renderContent();
                 }
@@ -2172,7 +2337,10 @@
             const name = nameInput.value.trim();
             const weight = parseFloat(weightInput.value) || 70.0;
             const newId = 'mem_' + Date.now();
-            const colorIdx = (window.appData.members || []).length;
+            const usedColors = new Set((window.appData.members || []).map(m => m.colorIndex % MEMBER_COLORS.length));
+            let colorIdx = 0;
+            while (usedColors.has(colorIdx) && colorIdx < MEMBER_COLORS.length) colorIdx++;
+            if (colorIdx >= MEMBER_COLORS.length) colorIdx = (window.appData.members || []).length;
 
             const todayStr = getTodayISODate();
             const newMember = {
@@ -2235,22 +2403,23 @@
             }
         }
 
-        function deleteMember() {
-            const id = document.getElementById('editMemberId').value;
-            if (confirm("Bạn có chắc chắn muốn xóa thành viên này và toàn bộ dữ liệu tập luyện?")) {
-                window.appData.members = window.appData.members.filter(m => m.id !== id);
-                if (activeTrackMemberId === id) {
-                    activeTrackMemberId = (window.appData.members.find(m => m.id !== id) || {}).id || null;
-                }
-                if (window.appData.activeTab === id || window.appData.activeTab === 'track') {
-                    window.appData.activeTab = 'track';
-                }
-                persistData();
-                renderTabs();
-                renderContent();
-                closeEditMemberModal();
-                showToast("Đã xóa thành viên!");
+        function deleteMember(memberId) {
+            const id = memberId || document.getElementById('editMemberId').value;
+            const member = (window.appData.members || []).find(m => m.id === id);
+            if (!member) return;
+            const groupNote = window.currentGroupCode ? '\nĐang bật đồng bộ nhóm: thành viên này sẽ bị xóa với cả nhóm.' : '';
+            if (!confirm(`Xóa "${member.name}" và toàn bộ dữ liệu tập luyện? Không thể hoàn tác.${groupNote}`)) return;
+
+            window.appData.members = window.appData.members.filter(m => m.id !== id);
+            if (activeTrackMemberId === id) {
+                activeTrackMemberId = (window.appData.members[0] || {}).id || null;
             }
+            if (overviewCalendarSelectedMember === id) overviewCalendarSelectedMember = 'ALL';
+            persistData();
+            renderTabs();
+            renderContent();
+            closeEditMemberModal();
+            showToast("Đã xóa thành viên!");
         }
 
         // Modal Đồng bộ Cloud Sync
