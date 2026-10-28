@@ -89,8 +89,17 @@
             display: grid;
             grid-template-rows: repeat(7, minmax(0, 1fr));
             grid-auto-flow: column;
+            grid-template-columns: 24px;   /* cột nhãn thứ */
             grid-auto-columns: minmax(0, 1fr);
             gap: 3px;
+        }
+        .heat-dow-label {
+            font-size: 9px;
+            line-height: 1;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
         }
         .day-square {
             aspect-ratio: 1;
@@ -745,6 +754,14 @@
             { key: '0', name: 'Chủ Nhật' }
         ];
 
+        // Chế độ dinh dưỡng/thể hình: lưu theo từng thành viên dưới dạng { 'YYYY-MM-DD': 'bulk'|'cut'|'maintain'|'none' }
+        // (mốc bắt đầu của giai đoạn; một ngày thuộc giai đoạn có mốc gần nhất <= ngày đó)
+        const TRAIN_PHASES = {
+            bulk: { label: 'Bulking', icon: 'fa-arrow-trend-up', on: 'bg-orange-600 border-orange-500 text-white', off: 'bg-slate-900 border-slate-700 text-slate-300 hover:border-orange-500' },
+            cut: { label: 'Cutting', icon: 'fa-arrow-trend-down', on: 'bg-sky-600 border-sky-500 text-white', off: 'bg-slate-900 border-slate-700 text-slate-300 hover:border-sky-500' },
+            maintain: { label: 'Maingain', icon: 'fa-equals', on: 'bg-violet-600 border-violet-500 text-white', off: 'bg-slate-900 border-slate-700 text-slate-300 hover:border-violet-500' }
+        };
+
         const MEMBER_COLORS = [
             { border: '#22c55e', bg: 'rgba(34, 197, 94, 0.1)', solid: '#22c55e' },
             { border: '#06b6d4', bg: 'rgba(6, 182, 212, 0.1)', solid: '#06b6d4' },
@@ -832,61 +849,102 @@
                 return `${year}-${month}-${day}`;
             };
 
+            // Sinh ~11 tuần nhật ký mô phỏng double progression (giữ tạ -> thêm rep -> nhảy tạ, giữ e1RM).
+            // Lịch tập tính theo "số ngày trước" (off % 7) nên dữ liệu mẫu luôn giống nhau dù mở app vào thứ mấy.
+            const roundTo = (x, st) => parseFloat((Math.round(x / st) * st).toFixed(2));
+            const genLogs = (cfg) => {
+                const logs = {}, state = {}, cnt = {};
+                Object.keys(cfg.lifts).forEach(g => cfg.lifts[g].forEach(l => { state[l.name] = { w: l.w0, r: l.lo }; cnt[l.name] = 0; }));
+                for (let off = cfg.days; off >= 0; off--) {
+                    const grp = (cfg.extra && cfg.extra[off]) || cfg.schedule[off % 7];
+                    if (!grp) continue;
+                    const inDeload = !!cfg.deload && off <= cfg.deload.from && off >= cfg.deload.to;
+                    const spike = cfg.spikeFrom !== undefined && off <= cfg.spikeFrom;
+                    const declining = cfg.declineFrom !== undefined && off <= cfg.declineFrom;
+                    const exercises = cfg.lifts[grp].map(l => {
+                        const st = state[l.name];
+                        let w = st.w, r = st.r, n = l.sets, advance = true;
+                        if (inDeload) { w = roundTo(w * 0.9, l.step); n = Math.max(1, Math.ceil(n / 2)); advance = false; }
+                        else if (declining && cfg.declineLifts.indexOf(l.name) >= 0) { w = roundTo(w * 0.94, l.step); r = Math.max(1, r - 1); advance = false; }
+                        if (spike && !inDeload) n += 2;
+                        const sets = [];
+                        for (let i = 0; i < n; i++) sets.push({ weight: w, reps: (i === n - 1 && r > l.lo) ? r - 1 : r, rir: 0 });
+                        if (advance) {
+                            cnt[l.name]++;
+                            if (cnt[l.name] % 2 === 0) {
+                                if (st.r >= l.hi) {
+                                    const e = st.w * (1 + l.hi / 30);
+                                    st.w = roundTo(st.w + l.step, l.step);
+                                    st.r = Math.min(l.hi - 1, Math.max(l.lo, Math.round(30 * (e / st.w - 1))));
+                                } else st.r += 1;
+                            }
+                        }
+                        return { name: l.name, sets: sets };
+                    });
+                    const bw = (off % 7 === cfg.bwDay || off === cfg.days) ? parseFloat((cfg.bw0 + cfg.bwRate * (cfg.days - off)).toFixed(1)) : '';
+                    logs[formatDate(off)] = { bodyWeight: bw, exercises: exercises };
+                }
+                return logs;
+            };
+
+            // Đức Hải: tập đều 11 tuần chưa nghỉ, tuần cuối tăng khối lượng đột ngột + 6 ngày liền,
+            // Bench & Barbell Row tụt sức mạnh -> app sẽ cảnh báo và đề xuất deload
+            const haiLogs = genLogs({
+                days: 76, bw0: 74.5, bwRate: 0.025, bwDay: 5,
+                schedule: { 6: 'legs', 5: 'push', 4: 'pull', 2: 'push', 1: 'pull' },
+                extra: { 3: 'pull' }, spikeFrom: 6, declineFrom: 13, declineLifts: ['Bench Press', 'Barbell Row'],
+                lifts: {
+                    push: [
+                        { name: 'Bench Press', w0: 70, step: 2.5, lo: 4, hi: 6, sets: 3 },
+                        { name: 'Overhead Press', w0: 42.5, step: 2.5, lo: 5, hi: 8, sets: 3 },
+                        { name: 'Incline Dumbbell Press', w0: 26, step: 2, lo: 8, hi: 12, sets: 3 }
+                    ],
+                    pull: [
+                        { name: 'Barbell Row', w0: 70, step: 2.5, lo: 5, hi: 8, sets: 3 },
+                        { name: 'Lat Pulldown', w0: 55, step: 2.5, lo: 8, hi: 12, sets: 3 }
+                    ],
+                    legs: [
+                        { name: 'Squat', w0: 95, step: 5, lo: 4, hi: 6, sets: 4 },
+                        { name: 'Deadlift', w0: 120, step: 5, lo: 3, hi: 5, sets: 2 }
+                    ]
+                }
+            });
+
+            // Minh Tùng: bulking, tạ tăng đều, đã deload xong cách đây ~3 tuần -> trạng thái "Tải ổn định"
+            const tungLogs = genLogs({
+                days: 76, bw0: 65.5, bwRate: 0.045, bwDay: 5,
+                schedule: { 5: 'push', 4: 'pull', 2: 'legs', 0: 'push' },
+                deload: { from: 26, to: 20 },
+                lifts: {
+                    push: [
+                        { name: 'Bench Press', w0: 55, step: 2.5, lo: 8, hi: 12, sets: 3 },
+                        { name: 'Incline Dumbbell Press', w0: 20, step: 2, lo: 8, hi: 12, sets: 3 },
+                        { name: 'Lateral Raise', w0: 8, step: 1, lo: 12, hi: 15, sets: 3 }
+                    ],
+                    pull: [
+                        { name: 'Lat Pulldown', w0: 50, step: 2.5, lo: 8, hi: 12, sets: 3 },
+                        { name: 'Barbell Row', w0: 50, step: 2.5, lo: 8, hi: 12, sets: 3 },
+                        { name: 'Bicep Curl', w0: 12, step: 1, lo: 10, hi: 15, sets: 3 }
+                    ],
+                    legs: [
+                        { name: 'Squat', w0: 70, step: 5, lo: 8, hi: 12, sets: 3 },
+                        { name: 'Romanian Deadlift', w0: 60, step: 5, lo: 8, hi: 12, sets: 3 },
+                        { name: 'Leg Press', w0: 120, step: 5, lo: 10, hi: 15, sets: 3 }
+                    ]
+                }
+            });
+
             return {
                 activeTab: 'overview',
                 routines: getDefaultRoutines(),
                 exerciseLibrary: DEFAULT_LIBRARY_EXERCISES,
                 weeklySchedule: { '1': 'rt_push', '2': 'rt_pull', '3': '', '4': 'rt_legs', '5': 'rt_push', '6': 'rt_pull', '0': '' },
                 members: [
+                    { id: 'mem_1', name: 'Đức Hải (Powerlifter)', colorIndex: 0, logs: haiLogs },
                     {
-                        id: 'mem_1',
-                        name: 'Đức Hải (Powerlifter)',
-                        colorIndex: 0,
-                        logs: {
-                            [formatDate(14)]: {
-                                bodyWeight: 75.0,
-                                exercises: [
-                                    { name: 'Bench Press', sets: [{ weight: 80, reps: 5 }, { weight: 85, reps: 5 }, { weight: 90, reps: 3 }] },
-                                    { name: 'Squat', sets: [{ weight: 110, reps: 5 }, { weight: 120, reps: 5 }] },
-                                    { name: 'Deadlift', sets: [{ weight: 140, reps: 5 }, { weight: 150, reps: 3 }] }
-                                ]
-                            },
-                            [formatDate(7)]: {
-                                bodyWeight: 75.5,
-                                exercises: [
-                                    { name: 'Bench Press', sets: [{ weight: 85, reps: 5 }, { weight: 92.5, reps: 4 }] },
-                                    { name: 'Squat', sets: [{ weight: 115, reps: 5 }, { weight: 125, reps: 4 }] }
-                                ]
-                            },
-                            [formatDate(0)]: {
-                                bodyWeight: 76.0,
-                                exercises: [
-                                    { name: 'Bench Press', sets: [{ weight: 87.5, reps: 5 }, { weight: 95, reps: 3 }] },
-                                    { name: 'Squat', sets: [{ weight: 120, reps: 5 }, { weight: 130, reps: 3 }] }
-                                ]
-                            }
-                        }
-                    },
-                    {
-                        id: 'mem_2',
-                        name: 'Minh Tùng (Hypertrophy)',
-                        colorIndex: 1,
-                        logs: {
-                            [formatDate(14)]: {
-                                bodyWeight: 68.0,
-                                exercises: [
-                                    { name: 'Bench Press', sets: [{ weight: 65, reps: 8 }, { weight: 70, reps: 8 }] },
-                                    { name: 'Squat', sets: [{ weight: 85, reps: 8 }, { weight: 90, reps: 8 }] }
-                                ]
-                            },
-                            [formatDate(0)]: {
-                                bodyWeight: 68.5,
-                                exercises: [
-                                    { name: 'Bench Press', sets: [{ weight: 70, reps: 8 }, { weight: 75, reps: 6 }] },
-                                    { name: 'Squat', sets: [{ weight: 90, reps: 8 }, { weight: 100, reps: 6 }] }
-                                ]
-                            }
-                        }
+                        id: 'mem_2', name: 'Minh Tùng (Hypertrophy)', colorIndex: 1, logs: tungLogs,
+                        phases: { [formatDate(76)]: 'bulk' },
+                        deloads: { [formatDate(26)]: { end: formatDate(20), reason: 'Chủ động' } }
                     }
                 ]
             };
@@ -1169,6 +1227,7 @@
 
             container.innerHTML = `
                 <div class="space-y-5">
+                    ${renderLoadOverviewCard()}
                     <div class="bg-cardbg border border-cardborder rounded-2xl p-4 flex flex-wrap justify-between items-center gap-3 shadow-xl">
                         <div>
                             <h2 class="text-base font-bold text-white flex items-center gap-2">
@@ -1255,6 +1314,15 @@
                         <!-- Render Grid Heatmap 365 ngày -->
                         <div id="heatmap365Container" class="overflow-x-auto no-scrollbar py-2"></div>
 
+                        <!-- Chú thích chế độ -->
+                        <div id="heatmapPhaseLegend" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-orange-500 inline-block"></span>Bulking</span>
+                            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-sky-500 inline-block"></span>Cutting</span>
+                            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-violet-500 inline-block"></span>Maingain</span>
+                            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-emerald-500 inline-block"></span>Chưa đặt chế độ</span>
+                            <span class="text-slate-500">Ô mờ = ngày chưa tới trong giai đoạn đó</span>
+                        </div>
+
                         <!-- Chú thích Legend -->
                         <div class="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/60 gap-2">
                             <div id="heatmapStats" class="font-medium text-emerald-400"></div>
@@ -1319,6 +1387,8 @@
             const targetMembers = overviewCalendarSelectedMember === 'ALL' 
                 ? (window.appData.members || []) 
                 : (window.appData.members || []).filter(m => m.id === overviewCalendarSelectedMember);
+            // Chế độ "Tất cả": chỉ một tông xanh (không phân Bulking/Cutting/Maingain); chọn từng người mới hiện màu chế độ
+            const isAll = overviewCalendarSelectedMember === 'ALL';
 
             let totalActiveDays = 0;
             const activeDatesSet = new Set();
@@ -1326,6 +1396,7 @@
             dates.forEach(item => {
                 let sessionCount = 0;
                 let activeMemberNames = [];
+                const activePhases = [];
 
                 targetMembers.forEach(m => {
                     const dayLog = m.logs ? m.logs[item.isoDate] : null;
@@ -1335,12 +1406,17 @@
                         if (hasSets) {
                             sessionCount++;
                             activeMemberNames.push(m.name);
+                            activePhases.push(getMemberPhaseOn(m, item.isoDate));
                         }
                     }
                 });
 
                 item.sessionCount = sessionCount;
                 item.activeMemberNames = activeMemberNames;
+                item.activePhases = activePhases;
+                // ngày nghỉ: chỉ tô nền chế độ khi tất cả thành viên đang xem cùng một chế độ
+                const dayPhases = targetMembers.map(m => getMemberPhaseOn(m, item.isoDate));
+                item.restPhase = (!isAll && dayPhases.length && dayPhases[0] && dayPhases.every(x => x === dayPhases[0])) ? dayPhases[0] : null;
 
                 if (sessionCount > 0) {
                     activeDatesSet.add(item.isoDate);
@@ -1351,25 +1427,46 @@
 
             // Xây dựng giao diện Heatmap Grid
             let html = `<div class="year-heatmap-grid min-w-[720px] pb-1">`;
+            // Cột nhãn thứ (Thứ 2 ở hàng 1 ... Chủ nhật ở hàng 7) + ô đệm để mỗi hàng đúng một thứ trong tuần
+            ['T2', '', '', 'T5', '', '', 'CN'].forEach(lb => { html += `<div class="heat-dow-label">${lb}</div>`; });
+            const leadBlank = (dates[0].dayOfWeek + 6) % 7;
+            for (let i = 0; i < leadBlank; i++) html += `<div></div>`;
+
+            // Mỗi chế độ một tông màu: Bulking cam, Cutting xanh trời, Maingain tím; chưa đặt chế độ giữ nguyên xanh lá.
+            // Ngày nghỉ trong giai đoạn được tô nền mờ cùng tông để nhìn ra độ dài của từng giai đoạn.
+            const HEAT = {
+                none:     { l1: 'bg-emerald-600/80 border border-emerald-500/50 shadow-sm shadow-emerald-500/20', l2: 'bg-emerald-500 border border-emerald-400 shadow-sm shadow-emerald-400/30', l3: 'bg-emerald-400 border border-emerald-300 shadow-md shadow-emerald-400/50', rest: null },
+                bulk:     { l1: 'bg-orange-600/80 border border-orange-500/50 shadow-sm shadow-orange-500/20', l2: 'bg-orange-500 border border-orange-400 shadow-sm shadow-orange-400/30', l3: 'bg-orange-400 border border-orange-300 shadow-md shadow-orange-400/50', rest: 'bg-orange-950/50 border border-orange-900/50' },
+                cut:      { l1: 'bg-sky-600/80 border border-sky-500/50 shadow-sm shadow-sky-500/20', l2: 'bg-sky-500 border border-sky-400 shadow-sm shadow-sky-400/30', l3: 'bg-sky-400 border border-sky-300 shadow-md shadow-sky-400/50', rest: 'bg-sky-950/50 border border-sky-900/50' },
+                maintain: { l1: 'bg-violet-600/80 border border-violet-500/50 shadow-sm shadow-violet-500/20', l2: 'bg-violet-500 border border-violet-400 shadow-sm shadow-violet-400/30', l3: 'bg-violet-400 border border-violet-300 shadow-md shadow-violet-400/50', rest: 'bg-violet-950/50 border border-violet-900/50' }
+            };
+            const phaseDays = { bulk: 0, cut: 0, maintain: 0 };
+            const todayIso = getTodayISODate();
 
             dates.forEach(item => {
                 let colorClass = "bg-slate-800/80 border border-slate-700/40";
                 let titleText = `${item.isoDate}: Chưa tập`;
 
+                // chế độ chủ đạo trong ngày theo những người có tập
+                const cnt = {};
+                (item.activePhases || []).forEach(p => { if (p) cnt[p] = (cnt[p] || 0) + 1; });
+                let dom = null, best = 0;
+                if (!isAll) ['bulk', 'cut', 'maintain'].forEach(p => { if ((cnt[p] || 0) > best) { best = cnt[p]; dom = p; } });
+                const heat = HEAT[dom || 'none'];
+                const phaseTxt = dom ? ` · ${TRAIN_PHASES[dom].label}` : '';
+
                 if (item.sessionCount > 0) {
+                    if (dom) phaseDays[dom]++;
                     if (overviewCalendarSelectedMember === 'ALL') {
-                        if (item.sessionCount === 1) {
-                            colorClass = "bg-emerald-600/80 border border-emerald-500/50 shadow-sm shadow-emerald-500/20";
-                        } else if (item.sessionCount === 2) {
-                            colorClass = "bg-emerald-500 border border-emerald-400 shadow-sm shadow-emerald-400/30";
-                        } else {
-                            colorClass = "bg-emerald-400 border border-emerald-300 shadow-md shadow-emerald-400/50";
-                        }
-                        titleText = `${item.isoDate}: ${item.sessionCount} người tập (${item.activeMemberNames.join(', ')})`;
+                        colorClass = item.sessionCount === 1 ? heat.l1 : (item.sessionCount === 2 ? heat.l2 : heat.l3);
+                        titleText = `${item.isoDate}: ${item.sessionCount} người tập (${item.activeMemberNames.join(', ')})${phaseTxt}`;
                     } else {
-                        colorClass = "bg-emerald-500 border border-emerald-400 shadow-md shadow-emerald-400/40";
-                        titleText = `${item.isoDate}: Đã đi tập`;
+                        colorClass = heat.l2.replace('shadow-sm', 'shadow-md');
+                        titleText = `${item.isoDate}: Đã đi tập${phaseTxt}`;
                     }
+                } else if (item.restPhase && item.isoDate >= todayIso) {   // chỉ ngày chưa tới mới tô mờ theo giai đoạn; ngày đã qua giữ màu trung tính
+                    colorClass = HEAT[item.restPhase].rest;
+                    titleText = `${item.isoDate}: Chưa tập · ${TRAIN_PHASES[item.restPhase].label}`;
                 }
 
                 html += `
@@ -1380,9 +1477,15 @@
             html += `</div>`;
             container.innerHTML = html;
 
+            const phaseLegend = document.getElementById('heatmapPhaseLegend');
+            if (phaseLegend) phaseLegend.style.display = isAll ? 'none' : '';
+
             if (statsContainer) {
                 const memberNameText = overviewCalendarSelectedMember === 'ALL' ? 'Cả nhóm' : (targetMembers[0]?.name || 'Thành viên');
-                statsContainer.innerHTML = `<i class="fa-solid fa-fire text-amber-400 mr-1"></i> ${memberNameText} · <strong>${totalActiveDays} / ${daysInYear}</strong> ngày sáng đèn (${((totalActiveDays / daysInYear) * 100).toFixed(1)}%) · Năm ${year}`;
+                const phaseStat = [['bulk', 'text-orange-400'], ['cut', 'text-sky-400'], ['maintain', 'text-violet-400']]
+                    .filter(([k]) => phaseDays[k] > 0)
+                    .map(([k, cls]) => ` · <span class="${cls}">${TRAIN_PHASES[k].label} ${phaseDays[k]}</span>`).join('');
+                statsContainer.innerHTML = `<i class="fa-solid fa-fire text-amber-400 mr-1"></i> ${memberNameText} · <strong>${totalActiveDays} / ${daysInYear}</strong> ngày sáng đèn (${((totalActiveDays / daysInYear) * 100).toFixed(1)}%) · Năm ${year}${phaseStat}`;
             }
         }
 
@@ -1507,7 +1610,7 @@
 
                         if (max1RM > 0) {
                             data1RM.push(max1RM);
-                            const bw = dayLog.bodyWeight || 70;
+                            const bw = dayLog.bodyWeight || ((getCarriedBodyWeight(member, dateStr) || {}).value) || 70;
                             dataRelative.push(parseFloat((max1RM / bw).toFixed(2)));
                         } else {
                             data1RM.push(null);
@@ -1606,6 +1709,12 @@
             }
 
             const currentLog = member.logs[dateStr];
+            const bwCarry = getCarriedBodyWeight(member, dateStr);
+            let bwCarryTip = 'Nhập khi cân nặng thay đổi, các ngày sau tự giữ mức này';
+            if (bwCarry && !currentLog.bodyWeight) {
+                const bp = bwCarry.date.split('-');
+                bwCarryTip = `Đang tự giữ ${bwCarry.value}kg từ ${bp[2]}/${bp[1]} · nhập số mới khi cân nặng thay đổi`;
+            }
             const colorObj = MEMBER_COLORS[member.colorIndex % MEMBER_COLORS.length];
 
             // Tự động kiểm tra Lịch tập dự kiến trong tuần nếu buổi này chưa có bài nào
@@ -1630,6 +1739,23 @@
                 }
             }
 
+            const curPhase = getMemberPhaseOn(member, dateStr);
+            let phaseSince = '';
+            if (curPhase) {
+                const ks = Object.keys(member.phases || {}).filter(k => k <= dateStr).sort();
+                const pp = (ks[ks.length - 1] || '').split('-');
+                if (pp.length === 3) phaseSince = `từ ${pp[2]}/${pp[1]}`;
+            }
+            const phaseTip = curPhase ? `Chế độ ${TRAIN_PHASES[curPhase].label} ${phaseSince} · bấm lại để bỏ` : 'Chưa đặt chế độ · áp dụng từ ngày đang xem trở đi';
+            const phaseBtn = (key) => {
+                const def = TRAIN_PHASES[key];
+                return `<button type="button" onclick="setMemberPhase('${member.id}', '${key}')" title="${phaseTip}" class="px-2 py-1 rounded-lg text-[11px] font-bold border transition ${curPhase === key ? def.on : def.off}"><i class="fa-solid ${def.icon} mr-1"></i>${def.label}</button>`;
+            };
+            const phaseGroupHtml = `
+                            <div class="flex items-center gap-1">
+                                ${['bulk', 'cut', 'maintain'].map(phaseBtn).join('')}
+                            </div>`;
+
             container.innerHTML = `
                 <div class="space-y-5">
                     <!-- Top Bar Thành Viên -->
@@ -1650,10 +1776,10 @@
                             <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl">
                                 <i class="fa-solid fa-weight-scale text-amber-400 text-xs"></i>
                                 <span class="text-xs font-medium text-slate-300">Cân nặng:</span>
-                                <input type="number" step="0.1" value="${currentLog.bodyWeight || ''}" placeholder="70" onchange="updateMemberBodyWeight('${member.id}', this.value)" class="w-16 bg-transparent text-xs font-bold text-amber-300 focus:outline-none text-right">
+                                <input type="number" step="0.1" value="${currentLog.bodyWeight || ''}" placeholder="${bwCarry ? bwCarry.value : 70}" title="${bwCarryTip}" onchange="updateMemberBodyWeight('${member.id}', this.value)" class="w-16 bg-transparent text-xs font-bold text-amber-300 placeholder:text-amber-300/60 focus:outline-none text-right">
                                 <span class="text-xs text-slate-400">kg</span>
                             </div>
-
+${phaseGroupHtml}
                             <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl">
                                 <i class="fa-solid fa-calendar text-emerald-400 text-xs"></i>
                                 <input type="date" value="${dateStr}" onchange="changeMemberDate('${member.id}', this.value)" class="bg-transparent text-xs text-emerald-300 font-semibold focus:outline-none">
@@ -1662,6 +1788,8 @@
                     </div>
 
                     ${scheduleAdviceHtml}
+
+                    ${renderLoadControlPanel(member, dateStr)}
 
                     <!-- Danh sách các bài tập trong ngày -->
                     <div class="space-y-2.5" id="memberExercisesContainer">
@@ -1685,14 +1813,91 @@
             `;
         }
 
-        // Dự đoán mức tạ cho buổi này dựa trên các buổi trước của cùng bài tập (chỉ lấy dữ liệu của chính thành viên đó)
-        function getWeightSuggestion(member, exName, dateStr) {
-            const name = capitalizeExerciseName(exName);
-            if (!name) return null;
-            const dates = Object.keys(member.logs || {}).filter(d => d < dateStr).sort();
+        // =====================================================================
+        // GỢI Ý MỨC TẠ THÔNG MINH
+        // Mô phỏng cách PT nhảy tạ (double progression + e1RM):
+        //  1. Mỗi người có "khung rep" riêng (suy ra từ thói quen tập nhiều buổi).
+        //  2. Chưa chạm đỉnh khung rep -> GIỮ tạ, thêm rep.
+        //  3. Chạm đỉnh khung rep -> NHẢY tạ, rep tụt về đáy khung (tính bằng Epley, giữ e1RM không tụt).
+        //  4. Nhịp tăng 1RM nhiều tháng (Theil-Sen) quyết định bước nhảy lớn hay nhỏ.
+        //  5. Bước tạ theo loại bài/thói quen đĩa của chính người tập; giảm tải khi tụt đỉnh, vào lại nhẹ khi nghỉ lâu.
+        // =====================================================================
+        function suggMedian(arr) {
+            if (!arr.length) return null;
+            const s = arr.slice().sort((a, b) => a - b);
+            const m = Math.floor(s.length / 2);
+            return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+        }
+
+        // Chế độ của thành viên tại 1 ngày: mốc gần nhất <= ngày đó; null nếu chưa đặt / 'none'
+        function getMemberPhaseOn(member, dateStr) {
+            const ph = member && member.phases;
+            if (!ph || typeof ph !== 'object') return null;
+            let cur = null;
+            Object.keys(ph).sort().forEach(d => { if (d <= dateStr) cur = ph[d]; });
+            return (cur === 'bulk' || cur === 'cut' || cur === 'maintain') ? cur : null;
+        }
+
+        function suggDayNum(str) {
+            const p = String(str).split('-');
+            return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000);
+        }
+
+        // Bước tạ nhỏ nhất hợp lý: theo loại bài, rồi thu nhỏ nếu lịch sử của người tập dùng mức lẻ hơn
+        function suggInferStep(name, weights) {
+            const n = name.toLowerCase();
+            let maxStep = 2.5;
+            if (/squat|deadlift|leg press|hip thrust|lunge|romanian|rdl|calf/.test(n)) maxStep = 5;
+            const cands = [5, 2.5, 2, 1.25, 1, 0.5].filter(c => c <= maxStep);
+            const uniq = Array.from(new Set(weights.map(w => Math.round(w * 100) / 100)));
+            for (const c of cands) {
+                if (uniq.every(w => Math.abs(w / c - Math.round(w / c)) < 1e-6)) return c;
+            }
+            return 0.5;
+        }
+
+        // Loại bài -> khung rep chuẩn, chỉ làm điểm xuất phát khi bài đó còn ít dữ liệu (>=4 buổi là đọc theo chính lịch sử bài đó)
+        const SUGG_REP_PRIOR = { heavy: { lo: 5, hi: 8 }, mid: { lo: 8, hi: 12 }, iso: { lo: 10, hi: 15 } };
+        function suggRepClass(name) {
+            const n = String(name || '').toLowerCase();
+            if (/curl|extension|raise|fly|flye|pec deck|pushdown|push-down|kickback|crunch|shrug|calf|face pull|skull|abductor|adductor/.test(n)) return 'iso';
+            if (/dumbbell|machine|cable|smith|romanian|rdl|leg press|hack|lunge|split|bulgarian|hip thrust|goblet|good morning|pulldown|pull-down|lat |dip|push-up|pushup/.test(n)) return 'mid';
+            if (/squat|deadlift|bench|overhead press|ohp|military|barbell row|pendlay|clean/.test(n)) return 'heavy';
+            return 'mid';
+        }
+
+        // Phân vị có trọng số (buổi gần đây nặng ký hơn) -> khung rep bám theo cách tập hiện tại
+        function suggWPercentile(items, q) {
+            if (!items.length) return null;
+            const arr = items.slice().sort((a, b) => a.v - b.v);
+            const total = arr.reduce((t, x) => t + x.w, 0);
+            let acc = 0;
+            for (let i = 0; i < arr.length; i++) { acc += arr[i].w; if (acc >= q * total - 1e-9) return arr[i].v; }
+            return arr[arr.length - 1].v;
+        }
+
+        // Gom các buổi tập của 1 bài: set tốt nhất theo e1RM (có cộng RIR) + các set làm việc
+        function suggGetSessions(member, name, dateStr) {
+            const dates = Object.keys(member.logs || {}).filter(d => d < dateStr && !getDeloadOn(member, d)).sort();   // bỏ các buổi trong tuần deload: tạ nhẹ có chủ đích, không dùng để tính tiến độ
+            // Quy ước: set không ghi RIR = 0 (tập tới giới hạn). Chỉ khi người tập thực sự ghi RIR > 0
+            // (>= 2 set) thì gợi ý mới nhắm còn dư 1 rep.
+            const loggedRirs = [];
+            dates.forEach(d => {
+                ((member.logs[d] || {}).exercises || []).forEach(ex => {
+                    if (capitalizeExerciseName(ex.name) !== name) return;
+                    (ex.sets || []).forEach(st => {
+                        if (!(parseFloat(st.weight) > 0) || !(parseFloat(st.reps) > 0)) return;
+                        if (st.rir === '' || st.rir === undefined || st.rir === null) return;
+                        const v = parseFloat(st.rir);
+                        if (!isNaN(v)) loggedRirs.push(v);
+                    });
+                });
+            });
+            const hasRir = loggedRirs.filter(v => v > 0).length >= 2;
+            const defaultRir = 0;
             const sessions = [];
             dates.forEach(d => {
-                let best = null;
+                const sets = [];
                 ((member.logs[d] || {}).exercises || []).forEach(ex => {
                     if (capitalizeExerciseName(ex.name) !== name) return;
                     (ex.sets || []).forEach(st => {
@@ -1700,49 +1905,628 @@
                         const r = parseFloat(st.reps);
                         if (!(w > 0) || !(r > 0)) return;
                         const rir = (st.rir === '' || st.rir === undefined || st.rir === null) ? null : parseFloat(st.rir);
-                        // 1RM ước tính có cộng số rep còn dư (RIR) nếu có ghi
-                        const eff = w * (1 + (r + (rir || 0)) / 30);
-                        if (!best || eff > best.eff) best = { date: d, weight: w, reps: r, rir: rir, eff: eff };
+                        const rirE = (rir === null || isNaN(rir)) ? defaultRir : rir;
+                        sets.push({ w: w, r: r, rir: isNaN(rir) ? null : rir, rirE: rirE, eff: w * (1 + (r + rirE) / 30) });
                     });
                 });
-                if (best) sessions.push(best);
+                if (!sets.length) return;
+                const best = sets.reduce((a, b) => (b.eff > a.eff ? b : a));
+                const top = Math.max.apply(null, sets.map(s => s.w));
+                sessions.push({
+                    date: d, t: suggDayNum(d),
+                    weight: best.w, reps: best.r, rir: best.rir, rirE: best.rirE, eff: best.eff,
+                    workReps: sets.filter(s => s.w >= top * 0.85).map(s => s.r),
+                    weights: sets.map(s => s.w)
+                });
             });
+            sessions.hasRir = hasRir;
+            sessions.defaultRir = defaultRir;
+            return sessions;
+        }
+
+        // Độ dốc Theil-Sen (kg e1RM / ngày): bền với buổi tập tệ/đột biến
+        function suggTheilSen(points) {
+            const slopes = [];
+            for (let i = 0; i < points.length; i++) {
+                for (let j = i + 1; j < points.length; j++) {
+                    const dt = points[j].t - points[i].t;
+                    if (dt >= 4) slopes.push((points[j].eff - points[i].eff) / dt);
+                }
+            }
+            return slopes.length ? suggMedian(slopes) : null;
+        }
+
+        // Nhịp tăng 1RM (kg/tháng): trộn xu hướng dài hạn (~3 tháng) và gần đây (~6 tuần)
+        function suggProgressRate(sessions) {
+            const lastT = sessions[sessions.length - 1].t;
+            let long = sessions.filter(s => lastT - s.t <= 90).slice(-40);
+            if (long.length < 3) long = sessions.slice(-6);
+            const shortW = sessions.filter(s => lastT - s.t <= 45);
+            const sl = long.length >= 3 ? suggTheilSen(long) : null;
+            const ss = shortW.length >= 3 ? suggTheilSen(shortW) : null;
+            let slope = null;
+            if (sl !== null && ss !== null) slope = 0.5 * sl + 0.5 * ss;
+            else slope = (sl !== null) ? sl : ss;
+            return slope === null ? null : slope * 30;
+        }
+
+        // Thói quen số rep chung của thành viên (dùng bù khi bài này mới tập ít buổi)
+        function suggMemberRepHabit(member, dateStr, repClass) {
+            const reps = [];
+            Object.keys(member.logs || {}).filter(d => d < dateStr).sort().slice(-60).forEach(d => {
+                ((member.logs[d] || {}).exercises || []).forEach(ex => {
+                    if (repClass && suggRepClass(capitalizeExerciseName(ex.name)) !== repClass) return;   // chỉ tính thói quen ở các bài cùng loại
+                    const sets = (ex.sets || []).map(s => ({ w: parseFloat(s.weight), r: parseFloat(s.reps) })).filter(s => s.w > 0 && s.r > 0);
+                    if (!sets.length) return;
+                    const top = Math.max.apply(null, sets.map(s => s.w));
+                    sets.filter(s => s.w >= top * 0.85).forEach(s => reps.push(s.r));
+                });
+            });
+            return reps.length >= 6 ? suggMedian(reps) : null;
+        }
+
+        // Xu hướng cân nặng (kg/tháng, %/tháng) từ ~3 tháng nhật ký; cần >=3 lần cân trải trên >=14 ngày
+        function suggBodyTrend(member, dateStr) {
+            const dn = suggDayNum(dateStr);
+            const pts = [];
+            Object.keys(member.logs || {}).filter(d => d <= dateStr).sort().forEach(d => {
+                const bw = parseFloat((member.logs[d] || {}).bodyWeight);
+                const t = suggDayNum(d);
+                if (bw > 0 && dn - t <= 90) pts.push({ t: t, eff: bw });
+            });
+            if (pts.length < 3 || pts[pts.length - 1].t - pts[0].t < 14) return null;
+            const slope = suggTheilSen(pts.slice(-30));
+            if (slope === null) return null;
+            const cur = suggMedian(pts.slice(-3).map(p => p.eff));
+            return { kg: slope * 30, pct: (slope * 30 / cur) * 100, cur: cur };
+        }
+
+        function getWeightSuggestion(member, exName, dateStr, noCalib) {
+            const name = capitalizeExerciseName(exName);
+            if (!name) return null;
+            const sessions = suggGetSessions(member, name, dateStr);
             if (!sessions.length) return null;
 
-            const recent = sessions.slice(-4);
-            const last = recent[recent.length - 1];
-            let growth;
-            if (recent.length === 1) {
-                growth = 0.01;
-            } else {
-                let sum = 0;
-                for (let i = 1; i < recent.length; i++) sum += (recent[i].eff - recent[i - 1].eff) / recent[i - 1].eff;
-                growth = Math.min(0.025, Math.max(0, sum / (recent.length - 1)));
-            }
-            if (last.rir !== null && last.rir >= 3) growth = Math.max(growth, 0.02); // buổi trước còn dư sức
-            if (last.rir === 0) growth = 0; // buổi trước tập tới fail: giữ mức cũ
+            const n = sessions.length;
+            const last = sessions[n - 1];
+            const prev = n >= 2 ? sessions[n - 2] : null;
+            const allWeights = [];
+            sessions.forEach(s => s.weights.forEach(w => allWeights.push(w)));
+            const step = suggInferStep(name, allWeights);
+            const roundTo = (x) => Math.max(step, parseFloat((Math.round(x / step) * step).toFixed(2)));
+            const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+            const gapDays = Math.max(0, suggDayNum(dateStr) - last.t);
 
-            const e1 = last.eff * (1 + growth);
-            let weight = e1 / (1 + (last.reps + (last.rir || 0)) / 30);
-            weight = Math.max(Math.round(weight * 2) / 2, last.weight);
-            return { weight: weight, reps: last.reps, last: last, sessions: recent.length, growth: growth };
+            // --- Khung rep riêng của TỪNG BÀI ---
+            // Đọc các set của chính bài này (buổi gần đây nặng ký hơn nên khung tự dịch theo cách tập hiện tại).
+            // Bài mới tập ít: dùng thói quen của bạn ở các bài cùng loại, chưa có thì dùng khung chuẩn của loại bài đó.
+            const repClass = suggRepClass(name);
+            const repPrior = SUGG_REP_PRIOR[repClass];
+            const wReps = [];
+            const repSess = sessions.slice(-10);
+            repSess.forEach((s, i) => {
+                const wt = Math.pow(0.82, repSess.length - 1 - i);
+                s.workReps.forEach(r => wReps.push({ v: r, w: wt }));
+            });
+            let P = suggWPercentile(wReps, 0.5) || last.reps;
+            const habit = suggMemberRepHabit(member, dateStr, repClass);
+            const priorMid = habit || (repPrior.lo + repPrior.hi) / 2;
+            if (n < 3) P = (n * P + priorMid) / (n + 1);
+            P = clamp(Math.round(P), 1, 25);
+            const baseW = repPrior.hi - repPrior.lo;
+            const minW = Math.max(2, baseW - 1);
+            let lo, hi, repSrc;
+            if (n >= 4) {
+                // Khung = giới hạn thực tế bạn hay đạt ở bài này (phân vị 10%/90% rep set tốt nhất, ~12 buổi gần nhất, buổi mới nặng ký hơn)
+                const br = sessions.slice(-12).map((s, i, a) => ({ v: s.reps, w: Math.pow(0.85, a.length - 1 - i) }));
+                lo = Math.round(suggWPercentile(br, 0.1));
+                hi = Math.round(suggWPercentile(br, 0.9));
+                if (hi - lo < minW) lo = Math.max(1, hi - minW);
+                hi = Math.max(hi, lo + 1);
+                repSrc = 'đọc từ lịch sử riêng của bài này';
+            } else {
+                lo = Math.max(1, P - Math.round(baseW / 2));
+                hi = Math.min(30, lo + baseW);
+                repSrc = habit ? 'bài còn ít buổi: theo thói quen của bạn ở các bài cùng loại' : 'bài còn ít buổi: dùng khung chuẩn theo loại bài';
+            }
+
+            // --- Nhịp tăng nhiều tháng ---
+            const eLast = last.eff;
+            const rate = suggProgressRate(sessions);               // kg 1RM / tháng
+            const ratePct = rate === null ? null : (rate / eLast) * 100;
+            let speed = 'unknown', speedTxt = 'chưa đủ dữ liệu nhiều tháng';
+            if (ratePct !== null) {
+                if (ratePct >= 12) { speed = 'fast'; speedTxt = 'tăng rất nhanh'; }
+                else if (ratePct >= 5) { speed = 'mid'; speedTxt = 'tăng khá nhanh'; }
+                else if (ratePct >= 1.5) { speed = 'slow'; speedTxt = 'tăng chậm'; }
+                else { speed = 'flat'; speedTxt = 'gần như đi ngang'; }
+            }
+            // --- Kết hợp cân nặng: tăng cân + tạ tăng (tốt) / tăng cân mà tạ chững / đang giảm cân ---
+            const bw = suggBodyTrend(member, dateStr);
+            // Chế độ đã đặt quyết định ý định (bulk/cut/maintain); chưa đặt thì suy ra từ xu hướng cân nặng như trước
+            const phase = getMemberPhaseOn(member, dateStr);
+            let gaining, cutting;
+            if (phase === 'bulk') { gaining = true; cutting = false; }
+            else if (phase === 'cut') { gaining = false; cutting = true; }
+            else if (phase === 'maintain') { gaining = false; cutting = false; }
+            else { gaining = !!bw && bw.pct >= 1; cutting = !!bw && bw.pct <= -1; }
+            const bulkStall = gaining && ratePct !== null && ratePct < Math.max(1.5, (bw && bw.pct > 0) ? bw.pct : 0);
+            const bulkGood = gaining && !bulkStall && ratePct !== null;
+            if (bulkStall) { speed = 'slow'; speedTxt = 'chưa theo kịp đà tăng cân'; }
+            else if (phase === 'cut' && (speed === 'fast' || speed === 'mid' || speed === 'unknown')) speed = 'slow';   // cutting: nhảy tạ nhỏ
+            const rateTxt = rate === null ? 'chưa rõ' : `${rate >= 0 ? '+' : ''}${rate.toFixed(1)}kg 1RM/tháng`;
+
+            // 1RM kỳ vọng tăng thêm ở buổi này (kg), co về mức mặc định 1% khi còn ít dữ liệu
+            const gapEff = clamp(gapDays || 7, 3, 14);
+            const defaultG = eLast * 0.01;
+            let gKg = defaultG;
+            if (rate !== null) {
+                const conf = Math.min(1, (n - 1) / 5);
+                gKg = conf * (Math.max(0, rate) * gapEff / 30) + (1 - conf) * defaultG;
+            }
+            gKg = clamp(gKg, eLast * 0.003, eLast * 0.04);
+            if (bulkStall) gKg = Math.max(eLast * 0.003, gKg * 0.5);
+            else if (phase === 'bulk') gKg = Math.min(gKg * 1.1, eLast * 0.04);          // bulking: dư calo hỗ trợ tăng tiến
+            if (phase === 'cut') gKg = Math.max(eLast * 0.003, gKg * 0.5);                // cutting: mục tiêu là giữ sức mạnh
+            // --- Tự hiệu chỉnh: chạy lại gợi ý cho các buổi trước (chỉ dùng dữ liệu trước ngày đó),
+            //     so với kết quả thực tế. Nếu bạn thường vượt/thấp hơn gợi ý -> buổi sau chỉnh theo (nhẹ tay, 60%).
+            let calib = 1, calibN = 0;
+            if (!noCalib && n >= 5) {
+                const ratios = [];
+                for (let i = Math.max(2, n - 6); i < n; i++) {
+                    const bs = getWeightSuggestion(member, exName, sessions[i].date, true);
+                    if (!bs || (bs.mode !== 'build' && bs.mode !== 'jump')) continue;
+                    ratios.push(sessions[i].eff / bs.predE);
+                }
+                if (ratios.length >= 3) {
+                    calib = 1 + (clamp(suggMedian(ratios), 0.92, 1.06) - 1) * 0.6;
+                    calibN = ratios.length;
+                }
+            }
+            const eT = (eLast + gKg) * calib;
+
+            // --- Trạng thái: đỉnh, đi ngang, tụt ---
+            const recent = sessions.slice(-8);
+            let peakIdx = 0;
+            recent.forEach((s, i) => { if (s.eff >= recent[peakIdx].eff) peakIdx = i; });
+            const peakE = recent[peakIdx].eff;
+            const sinceBest = recent.length - 1 - peakIdx;
+            const declining = sinceBest >= 3 && last.eff < peakE * (cutting ? 0.92 : 0.95);
+            const plateau = !declining && !cutting && sinceBest >= 3 && (last.t - recent[peakIdx].t) >= 21;
+            const justJumped = !!prev && last.weight >= prev.weight + step * 0.99;
+            const tRIR = sessions.hasRir ? 1 : 0;                   // người có ghi RIR: nhắm còn dư 1 rep; không ghi: tới giới hạn
+            const capReps = last.reps + last.rirE;
+            const repsAt = (W, E) => Math.round(30 * (E / W - 1)) - tRIR;
+
+            let mode, W, R, reason, alt = null;
+            const dl = getDeloadOn(member, dateStr);   // đang trong tuần deload đã lên lịch
+
+            if (dl) {
+                mode = 'deload';
+                W = roundTo(last.weight * 0.9);
+                R = clamp(P, lo, hi);
+                reason = `Tuần deload ${loadFmtDate(dl.start)}–${loadFmtDate(dl.end)}: tạ ~90% mức thường, làm khoảng 50% số set, dừng cách giới hạn 3–4 rep. Hết tuần sẽ quay lại mức tạ trước deload.`;
+            } else if (declining) {
+                mode = 'deload';
+                W = roundTo(0.9 * peakE / (1 + (P + tRIR) / 30));
+                R = clamp(P, lo, hi);
+                const dropPct = ((1 - last.eff / peakE) * 100).toFixed(0);
+                reason = `Sức mạnh ước tính tụt ${dropPct}% so với đỉnh suốt ${sinceBest} buổi → giảm tải ~10% một buổi rồi tăng lại từ từ.`;
+            } else if (gapDays > 14) {
+                mode = 'return';
+                const cut = Math.min(0.10, (gapDays - 10) * 0.005);
+                W = roundTo(eLast * (1 - cut) / (1 + (P + tRIR) / 30));
+                R = clamp(P, lo, hi);
+                reason = `Nghỉ ${gapDays} ngày → vào lại nhẹ hơn ~${(cut * 100).toFixed(0)}%, làm quen lại rồi mới tăng tiếp.`;
+            } else if (capReps >= hi) {
+                // CHẠM ĐỈNH KHUNG REP -> NHẢY TẠ, rep tụt về đáy khung
+                mode = 'jump';
+                // Người tăng càng nhanh -> rep hạ càng sâu (bước nhảy càng lớn); tăng chậm -> nhảy nhỏ, rep chỉ hạ nhẹ
+                const frac = (speed === 'fast') ? 0 : ((speed === 'mid' || speed === 'unknown') ? 0.33 : 0.6);
+                const t = clamp(Math.round(lo + (hi - lo) * frac), lo, Math.max(lo, hi - 1));
+                const maxW = Math.max(last.weight + step, last.weight * 1.15);   // không nhảy quá ~15% một lần
+                W = roundTo(eT / (1 + (t + tRIR) / 30));
+                if (W < last.weight + step - 1e-9) W = roundTo(last.weight + step);
+                if (W > maxW) W = roundTo(Math.max(last.weight + step, Math.floor(maxW / step) * step));
+                R = repsAt(W, eT);
+                let guard = 0;
+                while (R > hi - 1 && W + step <= maxW + 1e-9 && guard++ < 10) { W = roundTo(W + step); R = repsAt(W, eT); }
+                guard = 0;
+                while (R < lo && W - step >= last.weight + step - 1e-9 && guard++ < 10) { W = roundTo(W - step); R = repsAt(W, eT); }
+                R = clamp(R, lo, hi);
+                const size = (speed === 'fast') ? 'lớn' : ((speed === 'mid' || speed === 'unknown') ? 'vừa' : 'nhỏ');
+                reason = `Đã chạm đỉnh khung ${lo}–${hi} rep → nhảy tạ +${parseFloat((W - last.weight).toFixed(2))}kg, rep hạ về ~${R}. Nhịp ${rateTxt} (${speedTxt}) nên bước nhảy ${size}.`;
+                if (plateau) reason += ' Đang đi ngang ≥3 tuần: nếu vẫn kẹt, giảm tải 5–10% một buổi.';
+                const altR = last.reps + 1;
+                alt = { weight: last.weight, reps: altR, label: 'Giữ tạ, thêm rep (an toàn)' };
+            } else {
+                // CHƯA CHẠM ĐỈNH -> GIỮ TẠ, THÊM REP
+                mode = 'build';
+                W = last.weight;
+                R = repsAt(W, eT);
+                const minUp = (calib < 0.99 || phase === 'cut') ? 0 : 1;   // cutting: không ép thêm rep mỗi buổi
+                R = clamp(Math.max(R, last.reps + minUp), last.reps + minUp, Math.min(hi, last.reps + 3));
+                if (justJumped) reason = `Mới tăng tạ lên ${last.weight}kg → rep còn thấp là bình thường. Giữ tạ, thêm rep dần tới ${hi} rồi mới nhảy tiếp.`;
+                else reason = `Khung rep của bạn ${lo}–${hi}. Giữ ${W}kg, thêm rep tới ${hi} rồi mới nhảy tạ. Nhịp ${rateTxt}.`;
+                if (plateau) reason += ' Đang đi ngang ≥3 tuần: ưu tiên tăng rep sạch, đừng vội nhảy tạ.';
+                const W2 = roundTo(W + step);
+                const R2 = clamp(repsAt(W2, eT), 1, hi);
+                if (R2 >= Math.max(1, lo - 1)) alt = { weight: W2, reps: R2, label: 'Thấy nhẹ? thử nặng hơn một bậc' };
+            }
+
+            const bwKg = bw ? `${bw.kg >= 0 ? '+' : ''}${bw.kg.toFixed(1)}kg/tháng` : null;
+            if (mode === 'jump' || mode === 'build') {
+                if (bulkStall) reason += bwKg ? ` Cân nặng ${bwKg} nhưng tạ chưa theo kịp → nhảy nhỏ, ưu tiên rep sạch, xem lại ngủ/ăn/volume.` : ' Đang bulking nhưng tạ chưa tăng tương xứng → nhảy nhỏ, ưu tiên rep sạch, xem lại ngủ/ăn/volume.';
+                else if (bulkGood) reason += bwKg ? ` Cân nặng ${bwKg} và tạ cùng tăng: đúng hướng.` : ' Đang bulking và tạ tăng đều: đúng hướng.';
+                else if (cutting) reason += bwKg ? ` Đang giảm cân (${bwKg}): giữ được tạ là tốt, không ép nhảy.` : ' Đang cutting: giữ được tạ là tốt, không ép nhảy.';
+            }
+
+            const calibPct = (calib - 1) * 100;
+            if ((mode === 'jump' || mode === 'build') && calibN >= 3 && Math.abs(calibPct) >= 1) {
+                reason += ` Tự hiệu chỉnh ${calibPct > 0 ? '+' : ''}${calibPct.toFixed(1)}% theo ${calibN} buổi gần nhất (bạn ${calibPct > 0 ? 'thường vượt' : 'thường thấp hơn'} gợi ý).`;
+            }
+
+            // Mô tả ngắn hiển thị trên dòng gợi ý; bản đầy đủ (reason) nằm trong tooltip
+            let shortReason;
+            if (dl) shortReason = 'Tuần deload: tạ ~90%, ~50% số set.';
+            else if (mode === 'deload') shortReason = `Tụt ${((1 - last.eff / peakE) * 100).toFixed(0)}% so với đỉnh → giảm tải ~10%.`;
+            else if (mode === 'return') shortReason = `Nghỉ ${gapDays} ngày → vào lại nhẹ ~${(Math.min(0.10, (gapDays - 10) * 0.005) * 100).toFixed(0)}%.`;
+            else if (mode === 'jump') shortReason = `Chạm đỉnh ${lo}–${hi} rep → nhảy +${parseFloat((W - last.weight).toFixed(2))}kg, rep về ~${R}.`;
+            else shortReason = justJumped ? `Mới tăng tạ → giữ ${W}kg, thêm rep tới ${hi}.` : `Giữ ${W}kg, thêm rep tới ${hi} rồi nhảy tạ.`;
+            if (plateau && (mode === 'jump' || mode === 'build')) shortReason += ' Đang đi ngang.';
+
+            const tags = {
+                jump: { text: 'Nhảy tạ', cls: 'bg-amber-950 text-amber-300 border-amber-700/60' },
+                build: { text: justJumped ? 'Giữ tạ' : 'Tăng rep', cls: 'bg-cyan-950 text-cyan-300 border-cyan-700/60' },
+                deload: { text: 'Giảm tải', cls: 'bg-rose-950 text-rose-300 border-rose-700/60' },
+                return: { text: 'Vào lại', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700/60' },
+                deloadWeek: { text: 'Deload tuần', cls: 'bg-sky-950 text-sky-300 border-sky-700/60' }
+            };
+            return {
+                weight: W, reps: R, mode: mode, shortReason: shortReason, declining: declining, tag: dl ? tags.deloadWeek : tags[mode], reason: reason, alt: alt,
+                last: last, sessions: n, lo: lo, hi: hi, P: P, repSrc: repSrc, step: step,
+                rateTxt: rateTxt, speedTxt: speedTxt, bwKg: bwKg, phase: phase, calib: calib, calibN: calibN, predE: W * (1 + (R + tRIR) / 30), span: n >= 2 ? (last.t - sessions[0].t) : 0
+            };
+        }
+
+        // =====================================================================
+        // KIỂM SOÁT TẢI & LỊCH DELOAD
+        // Theo dõi khối lượng (tạ x rep) theo cửa sổ 7 ngày trượt, cảnh báo khi:
+        //  - tải 7 ngày vượt 1.3x / 1.5x mức trung bình các tuần trước (tăng quá nhanh)
+        //  - tập liên tục nhiều tuần không có tuần nhẹ
+        //  - tập nhiều ngày liền không nghỉ
+        //  - nhiều bài bị tụt sức mạnh so với đỉnh
+        //  - buổi đang ghi nặng hơn hẳn các buổi gần đây
+        // Khi cần, đề xuất deload 7 ngày và cho phép lên lịch. Lịch lưu ở member.deloads { 'YYYY-MM-DD': { end, reason } }.
+        // =====================================================================
+        const LOAD_DELOAD_DAYS = 7;
+        const LOAD_LEVELS = {
+            ok:     { label: 'Tải ổn định', icon: 'fa-circle-check', box: 'bg-emerald-950/30 border-emerald-700/50', text: 'text-emerald-300' },
+            watch:  { label: 'Cần theo dõi tải', icon: 'fa-triangle-exclamation', box: 'bg-amber-950/30 border-amber-600/50', text: 'text-amber-300' },
+            deload: { label: 'Nên deload', icon: 'fa-battery-quarter', box: 'bg-rose-950/30 border-rose-600/60', text: 'text-rose-300' },
+            active: { label: 'Đang trong tuần deload', icon: 'fa-bed', box: 'bg-sky-950/30 border-sky-600/50', text: 'text-sky-300' },
+            nodata: { label: 'Kiểm soát tải', icon: 'fa-gauge-high', box: 'bg-slate-900/60 border-slate-700', text: 'text-slate-300' }
+        };
+
+        function loadIsoOf(dayNum) { return new Date(dayNum * 86400000).toISOString().slice(0, 10); }
+        function loadAddDays(dateStr, n) { return loadIsoOf(suggDayNum(dateStr) + n); }
+        function loadFmtDate(dateStr) { const p = String(dateStr).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : dateStr; }
+        function loadFmtKg(v) { return Math.round(v).toLocaleString('vi-VN') + ' kg'; }
+
+        function getMemberDeloads(member) {
+            const dl = member && member.deloads;
+            if (!dl || typeof dl !== 'object') return [];
+            return Object.keys(dl).sort().map(k => ({
+                start: k,
+                end: (dl[k] && dl[k].end) || loadAddDays(k, LOAD_DELOAD_DAYS - 1),
+                reason: (dl[k] && dl[k].reason) || ''
+            }));
+        }
+        function getDeloadOn(member, dateStr) {
+            return getMemberDeloads(member).find(d => d.start <= dateStr && dateStr <= d.end) || null;
+        }
+
+        function computeLoadStatus(member, dateStr) {
+            const dn = suggDayNum(dateStr);
+            const today = getTodayISODate();
+            const res = { level: 'nodata', alerts: [], needDeload: false, active: null, upcoming: null, lastDeloadEnd: null, proposeStart: null, snoozed: false, m: null, note: '' };
+            const dls = getMemberDeloads(member);
+            res.active = dls.find(d => d.start <= dateStr && dateStr <= d.end) || null;
+            res.upcoming = dls.find(d => d.start > dateStr) || null;
+            const ended = dls.filter(d => d.end < dateStr).map(d => d.end).sort();
+            res.lastDeloadEnd = ended.length ? ended[ended.length - 1] : null;
+            res.snoozed = !!member.loadSnoozeUntil && member.loadSnoozeUntil >= today;
+            res.proposeStart = loadAddDays(dateStr > today ? dateStr : today, 1);
+            if (res.active) { res.level = 'active'; return res; }
+
+            // Khối lượng từng ngày (bỏ qua ngày trống)
+            const days = {};
+            Object.keys(member.logs || {}).forEach(d => {
+                if (d > dateStr) return;
+                let vol = 0, sets = 0;
+                ((member.logs[d] || {}).exercises || []).forEach(ex => (ex.sets || []).forEach(st => {
+                    const w = parseFloat(st.weight), r = parseFloat(st.reps);
+                    if (w > 0 && r > 0) { vol += w * r; sets++; }
+                }));
+                if (sets > 0) days[d] = { vol: vol, sets: sets, t: suggDayNum(d) };
+            });
+            const dates = Object.keys(days).sort();
+            if (!dates.length) { res.note = 'Chưa có buổi tập nào để đánh giá tải.'; return res; }
+            const span = dn - days[dates[0]].t;
+            if (span < 14) { res.note = 'Cần ít nhất 2 tuần nhật ký để đánh giá tải.'; return res; }
+
+            // Cửa sổ 7 ngày trượt, k = 0 là 7 ngày kết thúc tại ngày đang xem
+            const dlDaysIn = (lo, hi) => {
+                let c = 0;
+                for (let t = lo; t <= hi; t++) { const ds = loadIsoOf(t); if (dls.some(d => d.start <= ds && ds <= d.end)) c++; }
+                return c;
+            };
+            const wk = [];
+            for (let k = 0; k < 20; k++) {
+                const hi = dn - 7 * k, lo = hi - 6;
+                let vol = 0, n = 0;
+                dates.forEach(d => { const t = days[d].t; if (t >= lo && t <= hi) { vol += days[d].vol; n++; } });
+                wk.push({ vol: vol, n: n, dl: dlDaysIn(lo, hi) >= 4 });
+            }
+
+            // 1) Tải cấp tính / mãn tính (bỏ các tuần deload khỏi mức nền)
+            const acute = wk[0].vol;
+            const weeksAvail = Math.min(4, Math.floor(span / 7));
+            let chrSum = 0, chrCnt = 0;
+            for (let k = 1; k <= weeksAvail; k++) { if (!wk[k].dl) { chrSum += wk[k].vol; chrCnt++; } }
+            const chrAvg = chrCnt >= 2 ? chrSum / chrCnt : null;
+            const ratio = (chrAvg && chrAvg > 0) ? acute / chrAvg : null;
+            if (ratio !== null && wk[0].n >= 2 && ratio >= 1.3) {
+                res.alerts.push({
+                    kind: 'acwr', level: ratio >= 1.5 ? 'danger' : 'warn',
+                    title: 'Tải tăng quá nhanh',
+                    short: `tải 7 ngày ${ratio.toFixed(2)}× mức nền`,
+                    text: `Khối lượng 7 ngày qua ${loadFmtKg(acute)} = ${ratio.toFixed(2)}× trung bình ${chrCnt} tuần trước (${loadFmtKg(chrAvg)}). Ngưỡng an toàn ≤ 1,3× — nguy cơ quá tải và chấn thương.`
+                });
+            }
+
+            // 2) Số tuần tập liên tục chưa có tuần nhẹ / deload
+            let streak = 0;
+            for (let k = 0; k < wk.length; k++) { if (wk[k].n >= 2 && !wk[k].dl) streak++; else break; }
+            if (streak >= 6) {
+                res.alerts.push({
+                    kind: 'streak', level: streak >= 8 ? 'danger' : 'warn',
+                    title: 'Lâu chưa có tuần nhẹ',
+                    short: `${streak} tuần liên tục chưa deload`,
+                    text: `Đã tập liên tục ${streak} tuần mà chưa có tuần giảm tải. Thông thường nên deload mỗi 4–8 tuần.`
+                });
+            }
+
+            // 3) Số ngày tập liên tiếp
+            let dstreak = 0, tt = days[dateStr] ? dn : dn - 1;
+            while (days[loadIsoOf(tt)]) { dstreak++; tt--; }
+            if (dstreak >= 6) {
+                res.alerts.push({
+                    kind: 'days', level: dstreak >= 7 ? 'danger' : 'warn',
+                    title: 'Tập nhiều ngày liền',
+                    short: `${dstreak} ngày tập liên tiếp`,
+                    text: `Đã tập ${dstreak} ngày liên tiếp không nghỉ — cơ và hệ thần kinh chưa kịp hồi phục. Nên chèn ít nhất 1 ngày nghỉ.`
+                });
+            }
+
+            // 4) Sức mạnh tụt so với đỉnh ở các bài tập gần đây
+            const names = new Set();
+            dates.forEach(d => {
+                if (days[d].t >= dn - 28) ((member.logs[d] || {}).exercises || []).forEach(ex => {
+                    const n = capitalizeExerciseName(ex.name);
+                    if (n) names.add(n);
+                });
+            });
+            const decl = [];
+            names.forEach(n => { const sg = getWeightSuggestion(member, n, dateStr, true); if (sg && sg.declining) decl.push(n); });
+            if (decl.length) {
+                res.alerts.push({
+                    kind: 'decline', level: decl.length >= 2 ? 'danger' : 'warn',
+                    title: 'Sức mạnh đang tụt',
+                    short: `${decl.length} bài tụt sức mạnh`,
+                    text: `${decl.map(escapeTextValue).join(', ')} tụt ≥5% so với đỉnh gần đây dù vẫn tập đều — dấu hiệu mệt tích lũy.`
+                });
+            }
+
+            // 5) Buổi đang ghi so với các buổi gần đây (chỉ cảnh báo, không tính vào quyết định deload)
+            if (days[dateStr]) {
+                const prior = dates.filter(d => d < dateStr).slice(-4);
+                if (prior.length >= 3) {
+                    const avg = prior.reduce((a, d) => a + days[d].vol, 0) / prior.length;
+                    const r = avg > 0 ? days[dateStr].vol / avg : 0;
+                    if (r >= 1.3) {
+                        res.alerts.push({
+                            kind: 'session', soft: true, level: r >= 1.5 ? 'danger' : 'warn',
+                            title: 'Buổi hôm nay rất nặng',
+                            short: '',
+                            text: `Khối lượng buổi này ${loadFmtKg(days[dateStr].vol)} = ${r.toFixed(2)}× trung bình ${prior.length} buổi gần nhất. Cân nhắc bớt set phụ để không đẩy tải tuần vọt lên.`
+                        });
+                    }
+                }
+            }
+
+            const hard = res.alerts.filter(a => !a.soft);
+            const dangers = hard.filter(a => a.level === 'danger').length;
+            const recent = !!res.lastDeloadEnd && (dn - suggDayNum(res.lastDeloadEnd)) < 14;   // vừa deload xong thì chưa cần nữa
+            res.needDeload = !recent && (dangers >= 1 || hard.length >= 2);
+            res.level = res.needDeload ? 'deload' : (res.alerts.length ? 'watch' : 'ok');
+            res.m = { acute: acute, chrAvg: chrAvg, ratio: ratio, streak: streak, dstreak: dstreak };
+            return res;
+        }
+
+        function renderLoadControlPanel(member, dateStr) {
+            const st = computeLoadStatus(member, dateStr);
+            const lv = LOAD_LEVELS[st.level];
+            const today = getTodayISODate();
+            const mid = member.id;
+            const alertIcon = { danger: 'fa-circle-exclamation text-rose-400', warn: 'fa-triangle-exclamation text-amber-400' };
+
+            const alertsHtml = st.alerts.map(a => `
+                                <div class="flex items-start gap-1.5 text-[11px] leading-snug">
+                                    <i class="fa-solid ${alertIcon[a.level]} mt-0.5"></i>
+                                    <div class="text-slate-300"><strong class="text-white">${a.title}.</strong> ${a.text}</div>
+                                </div>`).join('');
+
+            let chips = '';
+            if (st.m) {
+                const rc = st.m.ratio === null ? 'text-slate-300' : (st.m.ratio >= 1.5 ? 'text-rose-300' : (st.m.ratio >= 1.3 ? 'text-amber-300' : 'text-emerald-300'));
+                const chip = (label, val, cls) => `<span class="px-2 py-0.5 rounded-lg bg-slate-900/70 border border-slate-700 text-[10px] text-slate-400">${label}: <strong class="${cls || 'text-slate-200'}">${val}</strong></span>`;
+                chips = `<div class="flex flex-wrap gap-1.5">
+                                ${chip('Tải 7 ngày', loadFmtKg(st.m.acute) + (st.m.ratio !== null ? ` (${st.m.ratio.toFixed(2)}×)` : ''), rc)}
+                                ${chip('Tập liên tục', st.m.streak + ' tuần')}
+                                ${chip('Deload gần nhất', st.lastDeloadEnd ? 'đến ' + loadFmtDate(st.lastDeloadEnd) : 'chưa có')}
+                            </div>`;
+            }
+
+            let actions = '';
+            if (st.active) {
+                const total = suggDayNum(st.active.end) - suggDayNum(st.active.start) + 1;
+                const idx = suggDayNum(dateStr) - suggDayNum(st.active.start) + 1;
+                actions = `
+                            <div class="text-[11px] text-sky-100 leading-snug">Tuần deload <strong>${loadFmtDate(st.active.start)} – ${loadFmtDate(st.active.end)}</strong> · ngày ${idx}/${total}. Làm khoảng <strong>50% số set</strong>, tạ ~<strong>90%</strong> mức thường (đã áp vào gợi ý), dừng cách giới hạn 3–4 rep. Các buổi trong tuần này không được dùng để tính tiến độ.</div>
+                            <button onclick="cancelDeload('${mid}', '${st.active.start}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-lg text-[11px] font-semibold">Kết thúc / hủy deload</button>`;
+            } else if (st.upcoming) {
+                const inDays = suggDayNum(st.upcoming.start) - suggDayNum(today);   // đếm từ HÔM NAY, không phụ thuộc ngày đang xem
+                const inTxt = inDays > 1 ? ` (còn ${inDays} ngày nữa)` : (inDays === 1 ? ' (bắt đầu ngày mai)' : (inDays === 0 ? ' (bắt đầu hôm nay)' : ''));
+                actions = `
+                            <div class="text-[11px] text-sky-100 leading-snug"><i class="fa-solid fa-calendar-check text-sky-400 mr-1"></i>Đã lên lịch deload <strong>${loadFmtDate(st.upcoming.start)} – ${loadFmtDate(st.upcoming.end)}</strong>${inTxt}.${st.upcoming.reason ? ' Lý do: ' + escapeTextValue(st.upcoming.reason) + '.' : ''}</div>
+                            <button onclick="cancelDeload('${mid}', '${st.upcoming.start}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-lg text-[11px] font-semibold">Hủy lịch</button>`;
+            } else if (st.needDeload && !st.snoozed) {
+                actions = `
+                            <div class="text-[11px] text-rose-100 leading-snug"><i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i>Đề xuất <strong>deload ${LOAD_DELOAD_DAYS} ngày</strong>: giảm ~50% số set, tạ ~90%, dừng cách giới hạn 3–4 rep.</div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <input id="deloadStart_${mid}" type="date" min="${today}" value="${st.proposeStart}" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-emerald-300 font-semibold focus:outline-none">
+                                <button onclick="scheduleDeload('${mid}')" class="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[11px] font-bold shadow">Lên lịch deload</button>
+                                <button onclick="snoozeLoadWarning('${mid}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 rounded-lg text-[11px] font-semibold">Để sau 7 ngày</button>
+                            </div>`;
+            } else {
+                actions = `
+                            ${st.needDeload && st.snoozed ? `<div class="text-[10px] text-slate-500">Đã hoãn nhắc deload đến ${loadFmtDate(member.loadSnoozeUntil)}.</div>` : ''}
+                            <details class="text-[11px]">
+                                <summary class="cursor-pointer text-slate-400 hover:text-slate-200">Lên lịch deload thủ công</summary>
+                                <div class="flex flex-wrap items-center gap-2 mt-1.5">
+                                    <input id="deloadStart_${mid}" type="date" min="${today}" value="${st.proposeStart}" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-emerald-300 font-semibold focus:outline-none">
+                                    <button onclick="scheduleDeload('${mid}')" class="px-3 py-1 bg-sky-700 hover:bg-sky-600 text-white rounded-lg text-[11px] font-bold">Lên lịch ${LOAD_DELOAD_DAYS} ngày</button>
+                                </div>
+                            </details>`;
+            }
+
+            return `
+                    <div class="border ${lv.box} rounded-xl p-3 space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="text-xs font-bold ${lv.text} flex items-center gap-1.5"><i class="fa-solid ${lv.icon}"></i> ${lv.label}</div>
+                            ${st.note ? `<span class="text-[10px] text-slate-500">${st.note}</span>` : ''}
+                        </div>
+                        ${chips}
+                        ${alertsHtml ? `<div class="space-y-1">${alertsHtml}</div>` : ''}
+                        <div class="space-y-1.5">${actions}
+                        </div>
+                    </div>`;
+        }
+
+        // Thẻ tổng quan cho cả nhóm: ai đang/sắp deload hoặc nên deload
+        function renderLoadOverviewCard() {
+            const today = getTodayISODate();
+            const rows = [];
+            (window.appData.members || []).forEach(m => {
+                const st = computeLoadStatus(m, today);
+                let txt = '', cls = '';
+                if (st.active) { txt = `Đang deload đến ${loadFmtDate(st.active.end)}`; cls = 'text-sky-300'; }
+                else if (st.upcoming) { txt = `Deload ${loadFmtDate(st.upcoming.start)} – ${loadFmtDate(st.upcoming.end)}`; cls = 'text-sky-300'; }
+                else if (st.needDeload && !st.snoozed) {
+                    txt = 'Nên deload: ' + st.alerts.filter(a => !a.soft).map(a => a.short).join(' · ');
+                    cls = 'text-rose-300';
+                }
+                if (txt) rows.push(`<button onclick="switchTab('${m.id}')" class="w-full text-left flex items-center justify-between gap-2 bg-slate-900/60 hover:bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-[11px]"><strong class="text-white">${escapeTextValue(m.name)}</strong><span class="${cls} text-right">${txt}</span></button>`);
+            });
+            if (!rows.length) return '';
+            return `
+                    <div class="bg-cardbg border border-amber-600/40 rounded-2xl p-4 shadow-lg space-y-2">
+                        <h3 class="text-xs font-bold text-slate-100 flex items-center gap-1.5"><i class="fa-solid fa-battery-quarter text-amber-400"></i> Kiểm soát tải &amp; Deload</h3>
+                        ${rows.join('')}
+                    </div>`;
+        }
+
+        function scheduleDeload(memberId) {
+            const member = window.appData.members.find(m => m.id === memberId);
+            const input = document.getElementById('deloadStart_' + memberId);
+            if (!member || !input || !input.value) { showToast('Chọn ngày bắt đầu deload', 'error'); return; }
+            const start = input.value;
+            if (start < getTodayISODate()) { showToast('Ngày bắt đầu phải từ hôm nay trở đi', 'error'); return; }
+            const end = loadAddDays(start, LOAD_DELOAD_DAYS - 1);
+            if (getMemberDeloads(member).some(d => d.start <= end && d.end >= start)) { showToast('Trùng với lịch deload đã có', 'error'); return; }
+            const st = computeLoadStatus(member, member.selectedDate || getTodayISODate());
+            const reason = st.needDeload ? st.alerts.filter(a => !a.soft).map(a => a.short).join('; ') : 'Chủ động';
+            if (!member.deloads || typeof member.deloads !== 'object') member.deloads = {};
+            member.deloads[start] = { end: end, reason: reason };
+            delete member.loadSnoozeUntil;
+            persistData();
+            renderContent();
+            showToast(`Đã lên lịch deload ${loadFmtDate(start)} – ${loadFmtDate(end)}`);
+        }
+
+        function cancelDeload(memberId, startKey) {
+            const member = window.appData.members.find(m => m.id === memberId);
+            if (!member || !member.deloads || !member.deloads[startKey]) return;
+            const today = getTodayISODate();
+            if (startKey <= today && member.deloads[startKey].end >= today) {
+                // đang diễn ra: rút ngắn đến hôm qua nếu đã qua ngày đầu, ngược lại xóa hẳn
+                if (startKey < today) member.deloads[startKey].end = loadAddDays(today, -1);
+                else delete member.deloads[startKey];
+            } else {
+                delete member.deloads[startKey];
+            }
+            persistData();
+            renderContent();
+            showToast('Đã cập nhật lịch deload');
+        }
+
+        function snoozeLoadWarning(memberId) {
+            const member = window.appData.members.find(m => m.id === memberId);
+            if (!member) return;
+            member.loadSnoozeUntil = loadAddDays(getTodayISODate(), 7);
+            persistData();
+            renderContent();
+            showToast('Sẽ nhắc lại sau 7 ngày');
         }
 
         function renderSuggestionRow(member, exIndex, sug) {
             const diff = Math.round((sug.weight - sug.last.weight) * 100) / 100;
-            const diffTxt = diff > 0 ? '+' + diff : '=';
+            const diffTxt = diff > 0 ? '+' + diff : (diff < 0 ? String(diff) : '=');
             const parts = sug.last.date.split('-');
             const dd = parts.length === 3 ? `${parts[2]}/${parts[1]}` : sug.last.date;
             const rirTxt = sug.last.rir !== null ? ` RIR ${sug.last.rir}` : '';
-            const tip = `Dựa trên ${sug.sessions} buổi gần nhất. Buổi ${dd}: ${sug.last.weight}kg x ${sug.last.reps}${rirTxt}. Xu hướng 1RM ước tính: +${(sug.growth * 100).toFixed(1)}%/buổi.`;
+            const tip = `${sug.reason} · Dựa trên ${sug.sessions} buổi (${sug.span} ngày). Buổi ${dd}: ${sug.last.weight}kg x ${sug.last.reps}${rirTxt}. Khung rep ${sug.lo}-${sug.hi} (${sug.repSrc}; thường ~${sug.P} rep). Bước tạ ${sug.step}kg. Nhịp tăng: ${sug.rateTxt}, ${sug.speedTxt}.${sug.phase ? ' Chế độ: ' + ({ bulk: 'Bulking', cut: 'Cutting', maintain: 'Maingain' })[sug.phase] + '.' : ''}${sug.bwKg ? ' Cân nặng: ' + sug.bwKg + '.' : ''}${sug.calibN >= 3 ? ' Hiệu chỉnh theo thực tế: ' + ((sug.calib - 1) * 100).toFixed(1) + '%.' : ''}`;
+            const altBtn = sug.alt ? `<button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.alt.weight}, ${sug.alt.reps})" title="${sug.alt.label}" class="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-md text-[11px] font-semibold">${sug.alt.weight}×${sug.alt.reps}</button>` : '';
             return `
-                        <div title="${tip}" class="flex items-center justify-between gap-2 bg-indigo-950/40 border border-indigo-500/30 rounded-lg px-2 py-1">
-                            <div class="text-[11px] text-indigo-200 truncate">
-                                <i class="fa-solid fa-wand-magic-sparkles text-amber-400 mr-1"></i>Gợi ý: <strong class="text-white">${sug.weight} kg × ${sug.reps}</strong>
-                                <span class="text-slate-400">(${diffTxt} so với ${dd})</span>
+                        <div title="${tip}" class="bg-indigo-950/40 border border-indigo-500/30 rounded-lg px-2 py-1 space-y-0.5">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="text-[11px] text-indigo-200 min-w-0">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-amber-400 mr-1"></i>Gợi ý: <strong class="text-white">${sug.weight} kg × ${sug.reps}</strong>
+                                    <span class="ml-1 px-1.5 py-px rounded-full border text-[9px] font-semibold ${sug.tag.cls}">${sug.tag.text}</span>
+                                    <span class="text-slate-400">(${diffTxt} so với ${dd})</span>
+                                </div>
+                                <div class="shrink-0 flex items-center gap-1">
+                                    ${altBtn}
+                                    <button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.weight}, ${sug.reps})" class="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[11px] font-semibold">Điền</button>
+                                </div>
                             </div>
-                            <button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.weight}, ${sug.reps})" class="shrink-0 px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[11px] font-semibold">Điền</button>
+                            <div class="text-[10px] text-slate-400 leading-snug">${sug.shortReason}</div>
                         </div>`;
+        }
+
+        // Đặt chế độ từ ngày đang xem trở đi (bấm lại chế độ đang bật để bỏ)
+        function setMemberPhase(memberId, mode) {
+            const member = window.appData.members.find(m => m.id === memberId);
+            if (!member || !TRAIN_PHASES[mode]) return;
+            const dateStr = member.selectedDate || getTodayISODate();
+            if (!member.phases || typeof member.phases !== 'object') member.phases = {};
+            const cur = getMemberPhaseOn(member, dateStr);
+            member.phases[dateStr] = (cur === mode) ? 'none' : mode;
+            persistData();
+            renderContent();
+            const pp = dateStr.split('-');
+            showToast(cur === mode ? 'Đã bỏ chế độ' : `Đã đặt ${TRAIN_PHASES[mode].label} từ ${pp[2]}/${pp[1]}`);
         }
 
         function applyWeightSuggestion(memberId, exIndex, weight, reps) {
@@ -1808,7 +2592,7 @@
                                         <th class="pb-1 w-7 font-semibold">SET</th>
                                         <th class="pb-1 font-semibold">TẠ (KG)</th>
                                         <th class="pb-1 font-semibold">REPS</th>
-                                        <th class="pb-1 w-12 font-semibold text-center" title="Reps in reserve - số rep còn lại (tùy chọn)">RIR</th>
+                                        <th class="pb-1 w-12 font-semibold text-center" title="Reps in reserve - số rep còn dư. Mặc định 0 = tập tới giới hạn">RIR</th>
                                         <th class="pb-1 w-[3.75rem] font-semibold">1RM</th>
                                         <th class="pb-1 w-6"></th>
                                     </tr>
@@ -1816,7 +2600,7 @@
                                 <tbody class="divide-y divide-slate-700/70">
                                     ${(ex.sets || []).map((s, setIndex) => {
                                         const estRM = calculate1RM(s.weight, s.reps);
-                                        const rirVal = (s.rir === undefined || s.rir === null) ? '' : s.rir;
+                                        const rirVal = (s.rir === undefined || s.rir === null || s.rir === '') ? 0 : s.rir;
                                         return `
                                             <tr>
                                                 <td class="py-1.5 font-mono font-bold text-slate-400">${setIndex + 1}</td>
@@ -1903,6 +2687,16 @@
             activePredictiveDropdown = null;
         }
 
+        // Cân nặng tự giữ: lấy mức đã nhập gần nhất tới ngày đang xem (không ghi đè vào nhật ký nên xu hướng cân nặng vẫn chỉ dựa trên lần cân thật)
+        function getCarriedBodyWeight(member, dateStr) {
+            let res = null;
+            Object.keys((member && member.logs) || {}).filter(d => d <= dateStr).sort().forEach(d => {
+                const v = parseFloat((member.logs[d] || {}).bodyWeight);
+                if (v > 0) res = { value: v, date: d };
+            });
+            return res;
+        }
+
         function updateMemberBodyWeight(memberId, val) {
             const member = window.appData.members.find(m => m.id === memberId);
             if (member) {
@@ -1920,7 +2714,7 @@
                 if (!member.logs[dateStr]) member.logs[dateStr] = { bodyWeight: '', exercises: [] };
                 member.logs[dateStr].exercises.push({
                     name: '',
-                    sets: [{ weight: '', reps: '' }]
+                    sets: [{ weight: '', reps: '', rir: 0 }]
                 });
                 persistData();
                 renderContent();
@@ -1971,7 +2765,7 @@
                 if (log && log.exercises[exIndex]) {
                     const sets = log.exercises[exIndex].sets || [];
                     const lastSet = sets.length > 0 ? sets[sets.length - 1] : { weight: '', reps: '' };
-                    sets.push({ weight: lastSet.weight, reps: lastSet.reps });
+                    sets.push({ weight: lastSet.weight, reps: lastSet.reps, rir: 0 });
                     log.exercises[exIndex].sets = sets;
                     persistData();
                     renderContent();
@@ -2022,7 +2816,7 @@
                 routine.exercises.forEach(ex => {
                     member.logs[dateStr].exercises.push({
                         name: ex.name,
-                        sets: [{ weight: '', reps: '' }, { weight: '', reps: '' }]
+                        sets: [{ weight: '', reps: '', rir: 0 }, { weight: '', reps: '', rir: 0 }]
                     });
                 });
 
