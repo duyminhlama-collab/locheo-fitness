@@ -1587,14 +1587,20 @@
                 const dataRelative = [];
                 const dataWeight = [];
 
+                // Cân nặng không nhập thì giữ nguyên mức gần nhất trước đó (kể cả ngày nghỉ không có log)
+                const bwPts = Object.keys(member.logs || {}).sort()
+                    .map(d => ({ d: d, v: parseFloat((member.logs[d] || {}).bodyWeight) })).filter(x => x.v > 0);
+                let bwIdx = -1;
+                const carriedAt = (ds) => {
+                    while (bwIdx + 1 < bwPts.length && bwPts[bwIdx + 1].d <= ds) bwIdx++;
+                    return bwIdx >= 0 ? bwPts[bwIdx].v : null;
+                };
+
                 sortedDates.forEach(dateStr => {
                     const dayLog = member.logs ? member.logs[dateStr] : null;
+                    const bwCarried = carriedAt(dateStr);
                     if (dayLog) {
-                        if (dayLog.bodyWeight) {
-                            dataWeight.push(parseFloat(dayLog.bodyWeight));
-                        } else {
-                            dataWeight.push(null);
-                        }
+                        dataWeight.push(bwCarried);
 
                         let max1RM = 0;
                         if (dayLog.exercises) {
@@ -1619,7 +1625,7 @@
                     } else {
                         data1RM.push(null);
                         dataRelative.push(null);
-                        dataWeight.push(null);
+                        dataWeight.push(bwCarried);
                     }
                 });
 
@@ -1711,6 +1717,7 @@
             const currentLog = member.logs[dateStr];
             const bwCarry = getCarriedBodyWeight(member, dateStr);
             let bwCarryTip = 'Nhập khi cân nặng thay đổi, các ngày sau tự giữ mức này';
+            const bwInherited = !!bwCarry && !currentLog.bodyWeight;   // ngày này chưa nhập -> dùng cân nặng gần nhất trước đó
             if (bwCarry && !currentLog.bodyWeight) {
                 const bp = bwCarry.date.split('-');
                 bwCarryTip = `Đang tự giữ ${bwCarry.value}kg từ ${bp[2]}/${bp[1]} · nhập số mới khi cân nặng thay đổi`;
@@ -1776,8 +1783,9 @@
                             <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl">
                                 <i class="fa-solid fa-weight-scale text-amber-400 text-xs"></i>
                                 <span class="text-xs font-medium text-slate-300">Cân nặng:</span>
-                                <input type="number" step="0.1" value="${currentLog.bodyWeight || ''}" placeholder="${bwCarry ? bwCarry.value : 70}" title="${bwCarryTip}" onchange="updateMemberBodyWeight('${member.id}', this.value)" class="w-16 bg-transparent text-xs font-bold text-amber-300 placeholder:text-amber-300/60 focus:outline-none text-right">
+                                <input type="number" step="0.1" value="${currentLog.bodyWeight || (bwCarry ? bwCarry.value : '')}" placeholder="70" title="${bwCarryTip}" onchange="updateMemberBodyWeight('${member.id}', this.value)" class="w-16 bg-transparent text-xs font-bold ${bwInherited ? 'text-amber-300/80' : 'text-amber-300'} placeholder:text-amber-300/60 focus:outline-none text-right">
                                 <span class="text-xs text-slate-400">kg</span>
+                                ${bwInherited ? `<span class="text-[10px] text-slate-500" title="${bwCarryTip}">giữ từ ${loadFmtDate(bwCarry.date)}</span>` : ''}
                             </div>
 ${phaseGroupHtml}
                             <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl">
@@ -2237,8 +2245,6 @@ ${phaseGroupHtml}
             res.lastDeloadEnd = ended.length ? ended[ended.length - 1] : null;
             res.snoozed = !!member.loadSnoozeUntil && member.loadSnoozeUntil >= today;
             res.proposeStart = loadAddDays(dateStr > today ? dateStr : today, 1);
-            if (res.active) { res.level = 'active'; return res; }
-
             // Khối lượng từng ngày (bỏ qua ngày trống)
             const days = {};
             Object.keys(member.logs || {}).forEach(d => {
@@ -2251,7 +2257,26 @@ ${phaseGroupHtml}
                 if (sets > 0) days[d] = { vol: vol, sets: sets, t: suggDayNum(d) };
             });
             const dates = Object.keys(days).sort();
-            if (!dates.length) { res.note = 'Chưa có buổi tập nào để đánh giá tải.'; return res; }
+            if (!dates.length) { res.note = 'Chưa có buổi tập nào để đánh giá tải.'; if (res.active) res.level = 'active'; return res; }
+
+            // Đang trong tuần deload: so khối lượng buổi hôm nay với trung bình các buổi bình thường trước deload
+            if (res.active) {
+                res.level = 'active';
+                const pre = dates.filter(d => d < res.active.start && !dls.some(x => x.start <= d && d <= x.end)).slice(-4);
+                if (days[dateStr] && pre.length >= 2) {
+                    const avg = pre.reduce((a, d) => a + days[d].vol, 0) / pre.length;
+                    const r = avg > 0 ? days[dateStr].vol / avg : 0;
+                    if (r > 0.6) {
+                        res.alerts.push({
+                            kind: 'deloadover', soft: true, level: r >= 0.85 ? 'danger' : 'warn',
+                            title: 'Đang tập vượt mức deload',
+                            short: 'tập vượt mức deload',
+                            text: `Khối lượng buổi này ${loadFmtKg(days[dateStr].vol)} = ${Math.round(r * 100)}% một buổi bình thường (${loadFmtKg(avg)}). Buổi deload nên ở khoảng 50–60% trở xuống: bớt set hoặc giảm tạ.`
+                        });
+                    }
+                }
+                return res;
+            }
             const span = dn - days[dates[0]].t;
             if (span < 14) { res.note = 'Cần ít nhất 2 tuần nhật ký để đánh giá tải.'; return res; }
 
@@ -2431,7 +2456,10 @@ ${phaseGroupHtml}
             (window.appData.members || []).forEach(m => {
                 const st = computeLoadStatus(m, today);
                 let txt = '', cls = '';
-                if (st.active) { txt = `Đang deload đến ${loadFmtDate(st.active.end)}`; cls = 'text-sky-300'; }
+                if (st.active) {
+                    const over = st.alerts.some(a => a.kind === 'deloadover');
+                    txt = `Đang deload đến ${loadFmtDate(st.active.end)}${over ? ' · tập vượt mức deload' : ''}`; cls = over ? 'text-amber-300' : 'text-sky-300';
+                }
                 else if (st.upcoming) { txt = `Deload ${loadFmtDate(st.upcoming.start)} – ${loadFmtDate(st.upcoming.end)}`; cls = 'text-sky-300'; }
                 else if (st.needDeload && !st.snoozed) {
                     txt = 'Nên deload: ' + st.alerts.filter(a => !a.soft).map(a => a.short).join(' · ');
