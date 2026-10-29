@@ -397,6 +397,25 @@
         </div>
     </div>
 
+    <!-- Modal: Mang thành viên sang nhóm mới -->
+    <div id="carryMembersModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-[60] p-4">
+        <div class="bg-cardbg border border-cardborder rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <h3 class="text-lg font-bold text-white mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-people-arrows text-emerald-400"></i> Mang người sang nhóm mới
+            </h3>
+            <p class="text-xs text-slate-400 mb-3">Chọn những người có sẵn dữ liệu trên máy này để đem vào nhóm <strong id="carryMembersCode" class="font-mono text-emerald-400"></strong>. Hai người demo sẽ không được đem sang.</p>
+            <div id="carryMembersList" class="space-y-2 max-h-64 overflow-y-auto"></div>
+            <p class="text-[11px] text-slate-500 mt-3">Người không chọn sẽ không còn hiện trên máy này sau khi vào nhóm (đã tự lưu bản sao dự phòng trên máy).</p>
+            <div class="flex justify-between items-center mt-5 gap-2">
+                <button onclick="confirmCarryMembers(true)" class="px-3 py-2 bg-slate-800/80 hover:bg-slate-800 text-slate-400 rounded-xl text-xs">Không mang ai</button>
+                <div class="flex gap-2">
+                    <button onclick="closeCarryMembersModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium">Quay lại</button>
+                    <button onclick="confirmCarryMembers(false)" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-900/30">Mang sang & Kết nối</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification Overlay -->
     <div id="toastNotification" class="fixed bottom-16 sm:bottom-6 right-4 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none bg-slate-900 border border-emerald-500/50 text-emerald-300 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-medium">
         <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
@@ -616,7 +635,7 @@
                 updateSyncBadge(connected, syncCode);
             }
 
-            window.setupCloudSync = async function(groupCode) {
+            window.setupCloudSync = async function(groupCode, carryIds) {
                 const code = sanitizeCode(groupCode);
                 if (code.length < 3) {
                     showToast('Mã nhóm cần ít nhất 3 ký tự (chữ, số, - hoặc _).', 'error');
@@ -633,6 +652,25 @@
                 syncVersion = resumed ? saved.version : 0;
                 syncBase = resumed ? saved.base : null;
 
+                // Chuyển sang nhóm khác: carryIds là danh sách id thành viên được đem sang (có thể rỗng).
+                // Hai người demo không bao giờ được đem sang.
+                const switching = Array.isArray(carryIds) && !resumed;
+                let carried = [];
+                if (switching) {
+                    try { localStorage.setItem('gym_group_tracker_backup_before_join', JSON.stringify(window.appData)); } catch (e) {}
+                    carried = (window.appData.members || [])
+                        .filter(m => carryIds.includes(m.id) && !(window.isDemoMember && window.isDemoMember(m)))
+                        .map(clone);
+                }
+                const resetViewAfterSwap = () => {
+                    const ids = (window.appData.members || []).map(m => m.id);
+                    if (!ids.includes(activeTrackMemberId)) activeTrackMemberId = ids[0] || null;
+                    if (overviewCalendarSelectedMember !== 'ALL' && !ids.includes(overviewCalendarSelectedMember)) overviewCalendarSelectedMember = 'ALL';
+                    window.saveLocalDataOnly();
+                    window.renderTabs();
+                    window.renderContent();
+                };
+
                 try {
                     const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
                     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -645,6 +683,21 @@
                         } else {
                             // Vào nhóm có sẵn: dùng dữ liệu chung của nhóm
                             applyRemote(body.data);
+                            if (switching && carried.length) {
+                                // Thêm người được mang sang (bỏ qua nếu nhóm đã có đúng id đó), đổi màu nếu trùng
+                                const have = new Set((window.appData.members || []).map(m => m.id));
+                                const used = new Set((window.appData.members || []).map(m => m.colorIndex));
+                                carried.filter(m => !have.has(m.id)).forEach(m => {
+                                    if (used.has(m.colorIndex)) {
+                                        let c = 0;
+                                        while (used.has(c) && c < 50) c++;
+                                        m.colorIndex = c;
+                                    }
+                                    used.add(m.colorIndex);
+                                    window.appData.members.push(m);
+                                });
+                                resetViewAfterSwap();
+                            }
                         }
                         syncVersion = body.version;
                         syncBase = body.data;
@@ -652,6 +705,11 @@
                     } else {
                         syncVersion = 0;
                         syncBase = null;
+                        if (switching) {
+                            // Nhóm mới: chỉ đẩy lên những người được chọn (không có demo)
+                            window.appData.members = carried;
+                            resetViewAfterSwap();
+                        }
                         await push();
                     }
                     saveSyncState();
@@ -1470,12 +1528,27 @@
                 }
 
                 html += `
-                    <div class="day-square ${colorClass} cursor-pointer" title="${titleText}"></div>
+                    <div class="day-square ${colorClass} cursor-pointer" ${item.isoDate === todayIso ? 'data-today="1" ' : ''}title="${titleText}"></div>
                 `;
             });
 
             html += `</div>`;
             container.innerHTML = html;
+
+            // Mở app / đổi năm: cuộn lưới để ngày hôm nay nằm giữa màn hình (đổi người xem trong cùng năm thì giữ nguyên vị trí)
+            if (container.dataset.heatYear !== String(year)) {
+                container.dataset.heatYear = String(year);
+                const focusToday = () => {
+                    const todayEl = container.querySelector('[data-today="1"]');
+                    if (!todayEl) { container.scrollLeft = 0; return; }
+                    const cr = container.getBoundingClientRect();
+                    const tr = todayEl.getBoundingClientRect();
+                    if (!cr.width) return;
+                    container.scrollLeft += (tr.left - cr.left) - (cr.width / 2 - tr.width / 2);
+                };
+                focusToday();
+                requestAnimationFrame(focusToday);
+            }
 
             const phaseLegend = document.getElementById('heatmapPhaseLegend');
             if (phaseLegend) phaseLegend.style.display = isAll ? 'none' : '';
@@ -2597,7 +2670,7 @@ ${phaseGroupHtml}
                     <div class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
                         <div class="flex justify-between items-center gap-2 border-b border-slate-700 pb-2">
                             <div class="flex-1 relative predictive-input-container">
-                                <input type="text" value="${ex.name || ''}" placeholder="Nhập tên bài tập..." 
+                                <input type="text" value="${String(ex.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" placeholder="Nhập tên bài tập..." autocomplete="off"
                                     onfocus="showPredictiveDropdown(this, '${member.id}', ${exIndex})"
                                     oninput="handlePredictiveInput(this, '${member.id}', ${exIndex})"
                                     onchange="updateExerciseName('${member.id}', ${exIndex}, this.value)"
@@ -2639,7 +2712,7 @@ ${phaseGroupHtml}
                                                     <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
                                                 </td>
                                                 <td class="py-1.5 pr-1.5">
-                                                    <input type="number" inputmode="decimal" min="0" max="10" step="0.5" value="${rirVal}" placeholder="-" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none focus:border-amber-500">
+                                                    <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none focus:border-amber-500">
                                                 </td>
                                                 <td class="py-1.5 font-mono text-emerald-400 text-[10px] font-semibold whitespace-nowrap">
                                                     ${estRM > 0 ? estRM + ' kg' : '-'}
@@ -2693,10 +2766,14 @@ ${phaseGroupHtml}
 
             let html = '';
             filtered.forEach(e => {
+                // onmousedown + preventDefault: giữ focus ở ô nhập để không kích hoạt onchange/vẽ lại
+                // trước khi bấm chọn (lỗi cũ: chữ đang gõ dở bị lưu thành bài mới thay vì bài được gợi ý)
+                const safeName = String(e.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                const safeCat = String(e.category || 'Khác').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 html += `
-                    <div onclick="selectPredictiveExercise('${memberId}', ${exIndex}, '${e.name.replace(/'/g, "\\'")}')" class="px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex justify-between items-center border-b border-slate-800/40 last:border-0">
-                        <span class="font-bold text-slate-200">${e.name}</span>
-                        <span class="text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">${e.category || 'Khác'}</span>
+                    <div onmousedown="event.preventDefault(); selectPredictiveExercise('${memberId}', ${exIndex}, '${encodeURIComponent(e.name || '')}')" class="px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex justify-between items-center border-b border-slate-800/40 last:border-0">
+                        <span class="font-bold text-slate-200">${safeName}</span>
+                        <span class="text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">${safeCat}</span>
                     </div>
                 `;
             });
@@ -2705,9 +2782,11 @@ ${phaseGroupHtml}
             dropdown.classList.remove('hidden');
         }
 
-        function selectPredictiveExercise(memberId, exIndex, exName) {
-            updateExerciseName(memberId, exIndex, exName);
+        function selectPredictiveExercise(memberId, exIndex, encodedName) {
+            let exName = encodedName;
+            try { exName = decodeURIComponent(encodedName); } catch (e) {}
             hideAllPredictiveDropdowns();
+            updateExerciseName(memberId, exIndex, exName);
         }
 
         function hideAllPredictiveDropdowns() {
@@ -2809,7 +2888,7 @@ ${phaseGroupHtml}
                 if (log && log.exercises[exIndex] && log.exercises[exIndex].sets[setIndex]) {
                     if (field === 'rir') {
                         const n = parseFloat(val);
-                        log.exercises[exIndex].sets[setIndex].rir = isNaN(n) ? '' : Math.min(10, Math.max(0, n));
+                        log.exercises[exIndex].sets[setIndex].rir = isNaN(n) ? '' : Math.min(9, Math.max(0, Math.round(n)));
                     } else {
                         log.exercises[exIndex].sets[setIndex][field] = parseFloat(val) || '';
                     }
@@ -3273,14 +3352,72 @@ ${phaseGroupHtml}
             }
 
             const code = codeInput.value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
-            if (window.setupCloudSync) {
-                const ok = await window.setupCloudSync(code);
-                if (ok) {
-                    window.currentGroupCode = code;
-                    localStorage.setItem(GROUP_CODE_KEY, code);
-                    closeSyncModal();
-                    showToast(`Đã kết nối nhóm: ${code}`, "cloud");
+            if (!window.setupCloudSync) return;
+
+            // Đổi sang nhóm khác: cho chọn người có sẵn dữ liệu để mang sang (không tính 2 người demo)
+            const switching = code !== window.currentGroupCode;
+            if (switching) {
+                const carryable = (window.appData.members || []).filter(m => !isDemoMember(m));
+                if (carryable.length) {
+                    openCarryMembersModal(code, carryable);
+                    return;
                 }
+            }
+            await joinGroupWithMembers(code, switching ? [] : undefined);
+        }
+
+        const DEMO_MEMBERS = { 'mem_1': 'Đức Hải (Powerlifter)', 'mem_2': 'Minh Tùng (Hypertrophy)' };
+        // Chỉ coi là demo khi còn đúng id + tên gốc (nếu bạn đã đổi tên để dùng thật thì vẫn được mang sang)
+        function isDemoMember(m) {
+            return !!m && DEMO_MEMBERS[m.id] !== undefined && DEMO_MEMBERS[m.id] === m.name;
+        }
+        window.isDemoMember = isDemoMember;
+
+        let pendingJoinCode = '';
+
+        function escapeHtmlText(v) {
+            return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function openCarryMembersModal(code, members) {
+            pendingJoinCode = code;
+            document.getElementById('carryMembersCode').textContent = code;
+            document.getElementById('carryMembersList').innerHTML = members.map(m => {
+                const days = Object.keys(m.logs || {}).filter(d => ((m.logs[d] || {}).exercises || []).length > 0).length;
+                return `
+                    <label class="flex items-center gap-3 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 cursor-pointer hover:border-emerald-500/60">
+                        <input type="checkbox" value="${escapeHtmlText(m.id)}" checked class="accent-emerald-500 w-4 h-4">
+                        <span class="flex-1 min-w-0">
+                            <span class="block text-sm font-semibold text-white truncate">${escapeHtmlText(m.name)}</span>
+                            <span class="block text-[11px] text-slate-400">${days} buổi tập đã ghi</span>
+                        </span>
+                    </label>`;
+            }).join('');
+            const modal = document.getElementById('carryMembersModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeCarryMembersModal() {
+            const modal = document.getElementById('carryMembersModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        async function confirmCarryMembers(skipAll) {
+            const ids = skipAll ? [] : Array.from(document.querySelectorAll('#carryMembersList input[type="checkbox"]:checked')).map(i => i.value);
+            const code = pendingJoinCode;
+            closeCarryMembersModal();
+            await joinGroupWithMembers(code, ids);
+        }
+
+        async function joinGroupWithMembers(code, carryIds) {
+            const ok = await window.setupCloudSync(code, carryIds);
+            if (ok) {
+                window.currentGroupCode = code;
+                localStorage.setItem(GROUP_CODE_KEY, code);
+                closeSyncModal();
+                showToast(`Đã kết nối nhóm: ${code}`, "cloud");
             }
         }
 
