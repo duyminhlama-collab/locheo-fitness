@@ -186,13 +186,13 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 </div>
                 <div>
                     <h1 class="text-sm font-extrabold text-white tracking-wide flex items-center gap-1.5">
-                        LOCHEOFITNESS <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full uppercase">PWA</span>
+                        LOCHEOFITNESS
                     </h1>
                     <div class="flex items-center gap-2">
                         <span id="syncStatusBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
-                            <i class="fa-solid fa-hard-drive"></i> Local
+                            Local
                         </span>
-                        <span id="currentGroupCodeBadge" class="text-[10px] text-slate-400 font-mono">Local</span>
+                        <span id="currentGroupCodeBadge" hidden></span>
                     </div>
                 </div>
             </div>
@@ -385,7 +385,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
     <div id="pwaHelpModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-cardbg border border-cardborder rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
             <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                <i class="fa-solid fa-mobile-screen text-emerald-400"></i> Cài Đặt Ứng Dụng (PWA)
+                <i class="fa-solid fa-mobile-screen text-emerald-400"></i> Cài Đặt Ứng Dụng
             </h3>
             <div class="text-xs text-slate-300 space-y-3 my-4">
                 <p><strong>Trên iPhone (Safari):</strong> Bấm nút <i class="fa-solid fa-arrow-up-from-bracket text-emerald-400"></i> Share ở thanh menu Safari, kéo xuống chọn <strong>"Thêm vào MH chính" (Add to Home Screen)</strong>.</p>
@@ -473,7 +473,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
     <!-- App Footer -->
     <footer class="bg-slate-900 border-t border-cardborder py-3 text-center text-[11px] text-slate-500 mt-auto">
-        LOCHEOFITNESS &copy; Realtime Cloud Sync & e1RM trung bình Epley · Brzycki · Lander
+        LOCHEOFITNESS &copy; CLBLOCHEO MY DINH
     </footer>
 
     <!-- ========== SECTION 05: CLOUD SYNC ENGINE (CLOUDFLARE + D1) ========== -->
@@ -825,19 +825,20 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             function updateSyncBadge(connected, code) {
                 const badge = document.getElementById('syncStatusBadge');
                 const codeBadge = document.getElementById('currentGroupCodeBadge');
-                if (badge && codeBadge) {
+                if (codeBadge) { codeBadge.hidden = true; codeBadge.textContent = ''; }
+                if (badge) {
                     if (connected) {
                         badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1";
-                        badge.innerHTML = `<i class="fa-solid fa-wifi text-emerald-400"></i> Sync Nhóm`;
-                        codeBadge.innerText = code;
+                        badge.textContent = "Synced";
+
                     } else if (code) {
                         badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-950 text-amber-400 border border-amber-800 flex items-center gap-1";
-                        badge.innerHTML = `<i class="fa-solid fa-plug-circle-exclamation"></i> Offline`;
-                        codeBadge.innerText = code;
+                        badge.textContent = "Offline";
+
                     } else {
                         badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1";
-                        badge.innerHTML = `<i class="fa-solid fa-hard-drive"></i> Local`;
-                        codeBadge.innerText = "Local";
+                        badge.textContent = "Local";
+
                     }
                 }
             }
