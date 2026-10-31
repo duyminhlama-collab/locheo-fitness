@@ -2272,6 +2272,7 @@ ${phaseGroupHtml}
 
         function getStrengthTransfer(member, exName, dateStr) {
             const to = capitalizeExerciseName(exName), category = transferCategory(to);
+            if ((member.logs[dateStr]?.exercises || []).some(ex => capitalizeExerciseName(ex.name) === to && ex.transferDisabled)) return null;
             const explicit = capitalizeExerciseName((member.strengthTransfers || {})[to]);
             if (!category) return null;
             const targetSessions = suggGetSessions(member, to, dateStr);
@@ -2353,7 +2354,7 @@ ${phaseGroupHtml}
             const log = member.logs[member.selectedDate || getTodayISODate()];
             const ex = log && log.exercises[exIndex];
             const linked = !!(ex && ex.transferFrom);
-            return '<details ' + (linked ? 'open ' : '') + 'data-transfer-picker class="relative min-w-0 shrink group open:flex open:items-center open:gap-1.5"><summary aria-label="Đổi bài và transfer sức mạnh" title="Đổi bài và transfer sức mạnh" class="flex h-7 w-7 items-center justify-center cursor-pointer list-none rounded-lg border border-slate-700 bg-slate-900 text-indigo-300 hover:border-indigo-400/60 hover:bg-indigo-950/50 hover:text-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 transition-colors [&::-webkit-details-marker]:hidden"><svg class="transfer-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></summary>' +
+            return '<details ' + (linked ? 'open ' : '') + 'data-transfer-picker class="relative min-w-0 shrink group open:flex open:items-center open:gap-1.5"><summary onclick="' + (linked ? 'event.preventDefault(); cancelExerciseTransfer(\'' + member.id + '\', ' + exIndex + ')' : '') + '" aria-label="Đổi bài và transfer sức mạnh" title="Đổi bài và transfer sức mạnh" class="flex h-7 w-7 items-center justify-center cursor-pointer list-none rounded-lg border border-slate-700 bg-slate-900 text-indigo-300 hover:border-indigo-400/60 hover:bg-indigo-950/50 hover:text-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 transition-colors [&::-webkit-details-marker]:hidden"><svg class="transfer-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></summary>' +
                 '<div class="relative min-w-0 w-32 sm:w-44 predictive-input-container"><input type="text" aria-label="Bài muốn đổi sang" placeholder="Đổi sang bài…" value="' + escapeAttrValue(linked ? name : '') + '" autocomplete="off" class="w-full min-w-0 bg-slate-900 border border-indigo-500/40 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400" onfocus="filterTransferOptions(this, \'' + member.id + '\', ' + exIndex + ')" oninput="filterTransferOptions(this, \'' + member.id + '\', ' + exIndex + ')" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); replaceExerciseWithTransfer(\'' + member.id + '\', ' + exIndex + ', this.value)}else if(event.key===\'Escape\'){this.nextElementSibling.classList.add(\'hidden\')}" >' +
                 '<div class="hidden absolute top-full right-0 mt-1 w-52 max-w-[75vw] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto" data-transfer-options></div></div></details>';
         }
@@ -2369,6 +2370,30 @@ ${phaseGroupHtml}
             const items = (window.appData.exerciseLibrary || []).filter(e => category && transferCategory(e.name) === category && capitalizeExerciseName(e.name) !== capitalizeExerciseName(ex.name) && e.name.toLowerCase().includes(query));
             dropdown.innerHTML = items.length ? items.map(e => '<button type="button" class="w-full text-left px-3 py-2 hover:bg-slate-800 text-xs text-slate-200 border-b border-slate-800/40" onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="replaceExerciseWithTransfer(\'' + memberId + '\', ' + exIndex + ', decodeURIComponent(\'' + encodeURIComponent(e.name).replace(/'/g, '%27') + '\'))">' + escapeTextValue(e.name) + '<span class="block text-[10px] text-amber-400">' + escapeTextValue(EXERCISE_CATEGORIES[resolvedExerciseCategory(e)]) + '</span></button>').join('') : '<p class="px-3 py-2 text-[11px] text-slate-400">' + (category ? 'Không có bài cùng nhóm cơ phù hợp. Nhập tên rồi nhấn Enter để kiểm tra.' : 'Hãy phân loại bài hiện tại trong kho trước khi transfer.') + '</p>';
             dropdown.classList.remove('hidden');
+        }
+
+        function cancelExerciseTransfer(memberId, index) {
+            const member = window.appData.members.find(m => m.id === memberId);
+            const log = member && member.logs[member.selectedDate || getTodayISODate()];
+            const target = log && log.exercises[index];
+            if (!target || !target.transferFrom) return;
+            const from = target.transferFrom;
+            const source = log.exercises.find((ex,i) => i !== index && capitalizeExerciseName(ex.name) === capitalizeExerciseName(from));
+            const recorded = (target.sets || []).some(s => parseFloat(s.weight) > 0 || parseFloat(s.reps) > 0);
+            if (recorded) {
+                // Không gán kết quả bài đích sang bài gốc khi hủy transfer.
+                delete target.transferFrom;
+                target.transferDisabled = true;
+                if (!source) log.exercises.splice(index,0,{name:from,transferDisabled:true,sets:Array.from({length:Math.max(1,target.sets.length)},()=>({weight:'',reps:'',rir:0}))});
+            } else if (source) {
+                log.exercises.splice(index,1);
+            } else {
+                target.name = from;
+                delete target.transferFrom;
+                target.transferDisabled = true;
+            }
+            if (source) source.transferDisabled = true;
+            persistData(); renderContent();
         }
 
         function replaceExerciseWithTransfer(memberId, exIndex, targetName) {
@@ -2404,6 +2429,9 @@ ${phaseGroupHtml}
             if (!name) return null;
             const sessions = suggGetSessions(member, name, dateStr);
             if (!sessions.length) return null;
+            // Ngưỡng 4 buổi chỉ áp dụng bài thường không có transfer hợp lệ.
+            const hasTransfer = transfer && !transfer.unavailable && Number.isFinite(transfer.predictedE);
+            if (!isBodyweightExercise(name) && !hasTransfer && sessions.length < 4) return null;
 
             const bodyweight = isBodyweightExercise(name);
             const n = sessions.length;
