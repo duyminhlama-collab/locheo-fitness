@@ -1,3 +1,30 @@
+<!--
+============================================================
+LOCHEOFITNESS - BẢN PHÂN SECTION THEO CHỨC NĂNG
+MỤC LỤC:
+01. Khai báo thư viện ngoài + PWA
+02. CSS giao diện
+03. Khung giao diện chính + điều hướng
+04. Các modal / popup / thông báo
+05. Cloud Sync Engine (Cloudflare Pages + D1)
+06. Dữ liệu mặc định + trạng thái ứng dụng
+07. Khởi tạo app + lưu dữ liệu + PWA
+08. Điều hướng + chọn thành viên/ngày
+09. Tổng quan: dashboard + lịch heatmap
+10. Biểu đồ sức mạnh + cân nặng
+11. Nhật ký tập của thành viên
+12. Logic gợi ý tạ / rep / RIR
+13. Phân tích xu hướng sức mạnh
+14. Quản lý bài tập trong nhật ký
+15. Kho bài tập (Exercise Library)
+16. Mẫu buổi tập + lịch tập tuần
+17. Quản lý thành viên
+18. Giao diện kết nối nhóm + backup/export
+19. Điểm khởi chạy ứng dụng
+Lưu ý: Các section vẫn nằm trong MỘT file HTML để không làm hỏng
+cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
+============================================================
+-->
 <!DOCTYPE html>
 <html lang="vi" class="dark">
 <head>
@@ -5,6 +32,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>LoCheoFitness</title>
 
+    <!-- ========== SECTION 01: THƯ VIỆN NGOÀI + PWA / META ========== -->
     <!-- PWA Web App Manifest (Data URI) -->
     <link rel="manifest" id="pwaManifest">
     <meta name="theme-color" content="#0f172a">
@@ -43,6 +71,7 @@
     <!-- FontAwesome CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
 
+    <!-- ========== SECTION 02: CSS GIAO DIỆN ========== -->
     <style>
         body {
             padding-top: env(safe-area-inset-top);
@@ -119,6 +148,7 @@
 </head>
 <body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col">
 
+    <!-- ========== SECTION 03: KHUNG GIAO DIỆN CHÍNH ========== -->
     <!-- Smart iOS Safari Install Banner -->
     <div id="iosInstallBanner" class="hidden bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-4 py-3 shadow-xl relative z-50 border-b border-emerald-500/40">
         <div class="max-w-7xl mx-auto flex items-center justify-between gap-3">
@@ -215,6 +245,7 @@
         </button>
     </div>
 
+    <!-- ========== SECTION 04: MODAL / POPUP / TOAST ========== -->
     <!-- Modal 1: Sync & Group Code Settings -->
     <div id="syncModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-cardbg border border-cardborder rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
@@ -403,7 +434,7 @@
             <h3 class="text-lg font-bold text-white mb-1 flex items-center gap-2">
                 <i class="fa-solid fa-people-arrows text-emerald-400"></i> Mang người sang nhóm mới
             </h3>
-            <p class="text-xs text-slate-400 mb-3">Chọn những người có sẵn dữ liệu trên máy này để đem vào nhóm <strong id="carryMembersCode" class="font-mono text-emerald-400"></strong>. Hai người demo sẽ không được đem sang.</p>
+            <p class="text-xs text-slate-400 mb-3">Chọn những người có sẵn dữ liệu trên máy này để đem vào nhóm <strong id="carryMembersCode" class="font-mono text-emerald-400"></strong>. Routine và lịch tuần trên máy được giữ nguyên; kho bài tập được gộp vào nhóm, không trùng tên hoa/thường. Hai người demo sẽ không được đem sang.</p>
             <div id="carryMembersList" class="space-y-2 max-h-64 overflow-y-auto"></div>
             <p class="text-[11px] text-slate-500 mt-3">Người không chọn sẽ không còn hiện trên máy này sau khi vào nhóm (đã tự lưu bản sao dự phòng trên máy).</p>
             <div class="flex justify-between items-center mt-5 gap-2">
@@ -424,9 +455,10 @@
 
     <!-- App Footer -->
     <footer class="bg-slate-900 border-t border-cardborder py-3 text-center text-[11px] text-slate-500 mt-auto">
-        LOCHEOFITNESS &copy; Realtime Cloud Sync & 1RM Epley Formula
+        LOCHEOFITNESS &copy; Realtime Cloud Sync & e1RM = W(1 + (R + RIR)/30)
     </footer>
 
+    <!-- ========== SECTION 05: CLOUD SYNC ENGINE (CLOUDFLARE + D1) ========== -->
     <!-- Team Cloud Sync (Cloudflare Pages Functions + D1 qua /api/sync) -->
     <script>
         (function() {
@@ -434,8 +466,8 @@
             // Poll thông minh: 5s -> 10s -> 30s khi không có thay đổi; có thay đổi/thao tác thì về 5s.
             // Tab ẩn thì dừng hẳn.
             const POLL_STEPS_MS = [5000, 10000, 30000];
-            // Trạng thái giao diện riêng từng máy, không đồng bộ giữa các thành viên
-            const LOCAL_ONLY_KEYS = ['weeklySchedule', 'activeTab'];
+            // Routine, lịch tuần và trạng thái giao diện riêng từng máy, không đồng bộ giữa các thành viên
+            const LOCAL_ONLY_KEYS = ['routines', 'weeklySchedule', 'activeTab'];
             const LOCAL_ONLY_MEMBER_KEYS = ['selectedDate'];
 
             let syncCode = '';
@@ -460,6 +492,7 @@
                 const shared = clone(appData) || {};
                 LOCAL_ONLY_KEYS.forEach(k => delete shared[k]);
                 (shared.members || []).forEach(m => LOCAL_ONLY_MEMBER_KEYS.forEach(k => delete m[k]));
+                if (Array.isArray(shared.exerciseLibrary)) shared.exerciseLibrary = mergeExerciseLibraries(shared.exerciseLibrary);
                 return shared;
             }
 
@@ -496,6 +529,7 @@
                 const prev = window.appData || {};
                 const localMembers = membersToMap(prev.members);
                 const next = clone(shared);
+                if (Array.isArray(next.exerciseLibrary)) next.exerciseLibrary = mergeExerciseLibraries(next.exerciseLibrary);
                 LOCAL_ONLY_KEYS.forEach(k => { if (prev[k] !== undefined) next[k] = prev[k]; });
                 (next.members || []).forEach(m => {
                     const old = localMembers[m.id];
@@ -525,6 +559,7 @@
                     const res = await fetch(`/api/sync?code=${encodeURIComponent(syncCode)}&since=${syncVersion}`, { cache: 'no-store' });
                     if (!res.ok) throw new Error('HTTP ' + res.status);
                     const body = await res.json();
+                    if (body.data) body.data = toShared(body.data);
                     setConnected(true);
                     if (body.unchanged) return 'unchanged';
                     if (pushing || pushTimer || isUserEditing()) return;
@@ -595,6 +630,7 @@
                             body: JSON.stringify({ code: syncCode, data: local, baseVersion: syncVersion })
                         });
                         const body = await res.json().catch(() => ({}));
+                        if (body.data) body.data = toShared(body.data);
                         if (res.ok) {
                             syncVersion = body.version;
                             syncBase = local;
@@ -650,17 +686,24 @@
                 const resumed = saved && saved.code === code;
                 syncCode = code;
                 syncVersion = resumed ? saved.version : 0;
-                syncBase = resumed ? saved.base : null;
+                syncBase = resumed && saved.base ? toShared(saved.base) : null;
 
                 // Chuyển sang nhóm khác: carryIds là danh sách id thành viên được đem sang (có thể rỗng).
                 // Hai người demo không bao giờ được đem sang.
                 const switching = Array.isArray(carryIds) && !resumed;
                 let carried = [];
+                let carriedLibrary = [];
                 if (switching) {
                     try { localStorage.setItem('gym_group_tracker_backup_before_join', JSON.stringify(window.appData)); } catch (e) {}
                     carried = (window.appData.members || [])
                         .filter(m => carryIds.includes(m.id) && !(window.isDemoMember && window.isDemoMember(m)))
                         .map(clone);
+                    if (carried.length) {
+                        // Routine/lịch tuần giữ nguyên local; mang đủ tên bài sang kho của nhóm.
+                        const routineExercises = (window.appData.routines || []).flatMap(r => r.exercises || []);
+                        const loggedExercises = carried.flatMap(m => Object.values(m.logs || {}).flatMap(log => log.exercises || []));
+                        carriedLibrary = mergeExerciseLibraries(window.appData.exerciseLibrary, routineExercises, loggedExercises);
+                    }
                 }
                 const resetViewAfterSwap = () => {
                     const ids = (window.appData.members || []).map(m => m.id);
@@ -675,6 +718,7 @@
                     const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
                     if (!res.ok) throw new Error('HTTP ' + res.status);
                     const body = await res.json();
+                    if (body.data) body.data = toShared(body.data);
                     if (body.version > 0) {
                         if (resumed && syncBase) {
                             // Gộp các thay đổi làm lúc offline với dữ liệu nhóm hiện tại
@@ -684,6 +728,7 @@
                             // Vào nhóm có sẵn: dùng dữ liệu chung của nhóm
                             applyRemote(body.data);
                             if (switching && carried.length) {
+                                window.appData.exerciseLibrary = mergeExerciseLibraries(window.appData.exerciseLibrary, carriedLibrary);
                                 // Thêm người được mang sang (bỏ qua nếu nhóm đã có đúng id đó), đổi màu nếu trùng
                                 const have = new Set((window.appData.members || []).map(m => m.id));
                                 const used = new Set((window.appData.members || []).map(m => m.colorIndex));
@@ -708,6 +753,7 @@
                         if (switching) {
                             // Nhóm mới: chỉ đẩy lên những người được chọn (không có demo)
                             window.appData.members = carried;
+                            if (carried.length) window.appData.exerciseLibrary = carriedLibrary;
                             resetViewAfterSwap();
                         }
                         await push();
@@ -830,6 +876,7 @@
             { border: '#f97316', bg: 'rgba(249, 115, 22, 0.1)', solid: '#f97316' }
         ];
 
+        // ========== SECTION 06: TRẠNG THÁI APP + DỮ LIỆU MẶC ĐỊNH ========== 
         // Core App State
         window.appData = {
             members: [],
@@ -850,6 +897,18 @@
         let activePredictiveDropdown = null;
         let overviewCalendarSelectedMember = "ALL";
         let overviewCalendarSelectedYear = 2026;
+
+        // Gộp kho theo tên, không phân biệt hoa/thường; ưu tiên tên và nhóm cơ của kho đích.
+        function mergeExerciseLibraries(...libraries) {
+            const result = new Map();
+            libraries.forEach(library => (Array.isArray(library) ? library : []).forEach(ex => {
+                const name = String(ex?.name || '').trim().replace(/\s+/g, ' ');
+                if (!name) return;
+                const key = name.toLowerCase();
+                if (!result.has(key)) result.set(key, { name: name, category: ex.category || 'Khác' });
+            }));
+            return Array.from(result.values());
+        }
 
         function capitalizeExerciseName(str) {
             if (!str) return '';
@@ -916,17 +975,15 @@
                 for (let off = cfg.days; off >= 0; off--) {
                     const grp = (cfg.extra && cfg.extra[off]) || cfg.schedule[off % 7];
                     if (!grp) continue;
-                    const inDeload = !!cfg.deload && off <= cfg.deload.from && off >= cfg.deload.to;
                     const spike = cfg.spikeFrom !== undefined && off <= cfg.spikeFrom;
                     const declining = cfg.declineFrom !== undefined && off <= cfg.declineFrom;
                     const exercises = cfg.lifts[grp].map(l => {
                         const st = state[l.name];
                         let w = st.w, r = st.r, n = l.sets, advance = true;
-                        if (inDeload) { w = roundTo(w * 0.9, l.step); n = Math.max(1, Math.ceil(n / 2)); advance = false; }
-                        else if (declining && cfg.declineLifts.indexOf(l.name) >= 0) { w = roundTo(w * 0.94, l.step); r = Math.max(1, r - 1); advance = false; }
-                        if (spike && !inDeload) n += 2;
+                        if (declining && cfg.declineLifts.indexOf(l.name) >= 0) { w = roundTo(w * 0.94, l.step); r = Math.max(1, r - 1); advance = false; }
+                        if (spike) n += 2;
                         const sets = [];
-                        for (let i = 0; i < n; i++) sets.push({ weight: w, reps: (i === n - 1 && r > l.lo) ? r - 1 : r, rir: 0 });
+                        for (let i = 0; i < n; i++) sets.push({ weight: w, reps: (i === n - 1 && r > l.lo) ? r - 1 : r, rir: cfg.rir ? (i === n - 1 ? Math.max(0, cfg.rir - 1) : cfg.rir) : 0 });
                         if (advance) {
                             cnt[l.name]++;
                             if (cnt[l.name] % 2 === 0) {
@@ -946,7 +1003,7 @@
             };
 
             // Đức Hải: tập đều 11 tuần chưa nghỉ, tuần cuối tăng khối lượng đột ngột + 6 ngày liền,
-            // Bench & Barbell Row tụt sức mạnh -> app sẽ cảnh báo và đề xuất deload
+            // Bench & Barbell Row tụt sức mạnh -> biểu đồ xu hướng tạ hiện "Giảm" và gợi ý tạ báo giảm tải
             const haiLogs = genLogs({
                 days: 76, bw0: 74.5, bwRate: 0.025, bwDay: 5,
                 schedule: { 6: 'legs', 5: 'push', 4: 'pull', 2: 'push', 1: 'pull' },
@@ -968,11 +1025,10 @@
                 }
             });
 
-            // Minh Tùng: bulking, tạ tăng đều, đã deload xong cách đây ~3 tuần -> trạng thái "Tải ổn định"
+            // Minh Tùng: bulking, tạ tăng đều -> xu hướng tạ đa số bài "Tăng"
             const tungLogs = genLogs({
-                days: 76, bw0: 65.5, bwRate: 0.045, bwDay: 5,
+                days: 76, rir: 1, bw0: 65.5, bwRate: 0.045, bwDay: 5,
                 schedule: { 5: 'push', 4: 'pull', 2: 'legs', 0: 'push' },
-                deload: { from: 26, to: 20 },
                 lifts: {
                     push: [
                         { name: 'Bench Press', w0: 55, step: 2.5, lo: 8, hi: 12, sets: 3 },
@@ -1001,19 +1057,21 @@
                     { id: 'mem_1', name: 'Đức Hải (Powerlifter)', colorIndex: 0, logs: haiLogs },
                     {
                         id: 'mem_2', name: 'Minh Tùng (Hypertrophy)', colorIndex: 1, logs: tungLogs,
-                        phases: { [formatDate(76)]: 'bulk' },
-                        deloads: { [formatDate(26)]: { end: formatDate(20), reason: 'Chủ động' } }
+                        phases: { [formatDate(76)]: 'bulk' }
                     }
                 ]
             };
         }
 
-        function calculate1RM(weight, reps) {
-            if (!weight || !reps || weight <= 0 || reps <= 0) return 0;
-            if (reps === 1) return parseFloat(weight);
-            return parseFloat((weight * (1 + reps / 30)).toFixed(1));
+        // e1RM = W × (1 + (R + RIR) / 30)  (Epley có cộng số rep còn dư). RIR trống = 0 (tập tới giới hạn)
+        function calculate1RM(weight, reps, rir) {
+            const w = parseFloat(weight), r = parseFloat(reps);
+            if (!(w > 0) || !(r > 0)) return 0;
+            const rv = parseFloat(rir);
+            return parseFloat((w * (1 + (r + (isNaN(rv) ? 0 : Math.max(0, rv))) / 30)).toFixed(1));
         }
 
+        // ========== SECTION 07: KHỞI TẠO APP + LƯU DỮ LIỆU + PWA ========== 
         function initApp() {
             setupDynamicManifest();
             registerServiceWorker();
@@ -1210,6 +1268,7 @@
                 </button>`;
         };
 
+        // ========== SECTION 08: ĐIỀU HƯỚNG + CHỌN THÀNH VIÊN / NGÀY ========== 
         function switchTab(tabId) {
             window.appData.activeTab = (tabId === 'overview') ? 'overview' : 'track';
             if (tabId !== 'overview' && tabId !== 'track') activeTrackMemberId = tabId;
@@ -1255,6 +1314,7 @@
             renderMemberTab(document.getElementById('trackMemberContent'), member);
         };
 
+        // ========== SECTION 09: TỔNG QUAN / DASHBOARD / HEATMAP ========== 
         // Render Overview Tab & Thống nhất các bài tập + Lịch 365 Ngày Heatmap
         function renderOverviewTab(container) {
             const exerciseMap = new Map();
@@ -1285,7 +1345,7 @@
 
             container.innerHTML = `
                 <div class="space-y-5">
-                    ${renderLoadOverviewCard()}
+                    ${renderTrendOverviewCard()}
                     <div class="bg-cardbg border border-cardborder rounded-2xl p-4 flex flex-wrap justify-between items-center gap-3 shadow-xl">
                         <div>
                             <h2 class="text-base font-bold text-white flex items-center gap-2">
@@ -1562,6 +1622,7 @@
             }
         }
 
+        // ========== SECTION 10: BIỂU ĐỒ SỨC MẠNH + CÂN NẶNG ========== 
         function changeOverviewExercise(exName) {
             overviewSelectedExercise = exName;
             const titleEl = document.getElementById('overviewExTitle');
@@ -1680,7 +1741,7 @@
                             dayLog.exercises.forEach(ex => {
                                 if (capitalizeExerciseName(ex.name) === exerciseName && ex.sets) {
                                     ex.sets.forEach(s => {
-                                        const rm = calculate1RM(s.weight, s.reps);
+                                        const rm = calculate1RM(s.weight, s.reps, s.rir);
                                         if (rm > max1RM) max1RM = rm;
                                     });
                                 }
@@ -1779,6 +1840,7 @@
             }
         }
 
+        // ========== SECTION 11: NHẬT KÝ TẬP CỦA THÀNH VIÊN ========== 
         // Render Trang Chi Tiết Nhật Ký Tập Của Thành Viên
         function renderMemberTab(container, member) {
             const dateStr = member.selectedDate || getTodayISODate();
@@ -1870,7 +1932,7 @@ ${phaseGroupHtml}
 
                     ${scheduleAdviceHtml}
 
-                    ${renderLoadControlPanel(member, dateStr)}
+                    ${renderTrendPanel(member, dateStr)}
 
                     <!-- Danh sách các bài tập trong ngày -->
                     <div class="space-y-2.5" id="memberExercisesContainer">
@@ -1895,6 +1957,7 @@ ${phaseGroupHtml}
         }
 
         // =====================================================================
+        // ========== SECTION 12: LOGIC GỢI Ý TẠ / REP / RIR ========== 
         // GỢI Ý MỨC TẠ THÔNG MINH
         // Mô phỏng cách PT nhảy tạ (double progression + e1RM):
         //  1. Mỗi người có "khung rep" riêng (suy ra từ thói quen tập nhiều buổi).
@@ -1959,7 +2022,7 @@ ${phaseGroupHtml}
 
         // Gom các buổi tập của 1 bài: set tốt nhất theo e1RM (có cộng RIR) + các set làm việc
         function suggGetSessions(member, name, dateStr) {
-            const dates = Object.keys(member.logs || {}).filter(d => d < dateStr && !getDeloadOn(member, d)).sort();   // bỏ các buổi trong tuần deload: tạ nhẹ có chủ đích, không dùng để tính tiến độ
+            const dates = Object.keys(member.logs || {}).filter(d => d < dateStr).sort();
             // Quy ước: set không ghi RIR = 0 (tập tới giới hạn). Chỉ khi người tập thực sự ghi RIR > 0
             // (>= 2 set) thì gợi ý mới nhắm còn dư 1 rep.
             const loggedRirs = [];
@@ -1997,6 +2060,8 @@ ${phaseGroupHtml}
                     date: d, t: suggDayNum(d),
                     weight: best.w, reps: best.r, rir: best.rir, rirE: best.rirE, eff: best.eff,
                     workReps: sets.filter(s => s.w >= top * 0.85).map(s => s.r),
+                    workRirs: sets.filter(s => s.w >= top * 0.85 && s.rir !== null).map(s => s.rir),
+                    nSets: sets.length,
                     weights: sets.map(s => s.w)
                 });
             });
@@ -2175,20 +2240,18 @@ ${phaseGroupHtml}
             const declining = sinceBest >= 3 && last.eff < peakE * (cutting ? 0.92 : 0.95);
             const plateau = !declining && !cutting && sinceBest >= 3 && (last.t - recent[peakIdx].t) >= 21;
             const justJumped = !!prev && last.weight >= prev.weight + step * 0.99;
-            const tRIR = sessions.hasRir ? 1 : 0;                   // người có ghi RIR: nhắm còn dư 1 rep; không ghi: tới giới hạn
+            // RIR mục tiêu của buổi này: lấy trung vị RIR các set làm việc ở ~4 buổi gần nhất (tối thiểu 1 nếu có ghi RIR);
+            // không ghi RIR thì 0 = tập tới giới hạn.
+            const rirPool = [];
+            sessions.slice(-4).forEach(s => (s.workRirs || []).forEach(v => rirPool.push(v)));
+            let tRIR = sessions.hasRir ? Math.max(1, clamp(Math.round(suggMedian(rirPool) || 0), 0, 4)) : 0;
             const capReps = last.reps + last.rirE;
             const repsAt = (W, E) => Math.round(30 * (E / W - 1)) - tRIR;
 
             let mode, W, R, reason, alt = null;
-            const dl = getDeloadOn(member, dateStr);   // đang trong tuần deload đã lên lịch
 
-            if (dl) {
-                mode = 'deload';
-                W = roundTo(last.weight * 0.9);
-                R = clamp(P, lo, hi);
-                reason = `Tuần deload ${loadFmtDate(dl.start)}–${loadFmtDate(dl.end)}: tạ ~90% mức thường, làm khoảng 50% số set, dừng cách giới hạn 3–4 rep. Hết tuần sẽ quay lại mức tạ trước deload.`;
-            } else if (declining) {
-                mode = 'deload';
+            if (declining) {
+                mode = 'reduce';
                 W = roundTo(0.9 * peakE / (1 + (P + tRIR) / 30));
                 R = clamp(P, lo, hi);
                 const dropPct = ((1 - last.eff / peakE) * 100).toFixed(0);
@@ -2249,370 +2312,300 @@ ${phaseGroupHtml}
 
             // Mô tả ngắn hiển thị trên dòng gợi ý; bản đầy đủ (reason) nằm trong tooltip
             let shortReason;
-            if (dl) shortReason = 'Tuần deload: tạ ~90%, ~50% số set.';
-            else if (mode === 'deload') shortReason = `Tụt ${((1 - last.eff / peakE) * 100).toFixed(0)}% so với đỉnh → giảm tải ~10%.`;
+            if (mode === 'reduce') shortReason = `Tụt ${((1 - last.eff / peakE) * 100).toFixed(0)}% so với đỉnh.`;
             else if (mode === 'return') shortReason = `Nghỉ ${gapDays} ngày → vào lại nhẹ ~${(Math.min(0.10, (gapDays - 10) * 0.005) * 100).toFixed(0)}%.`;
             else if (mode === 'jump') shortReason = `Chạm đỉnh ${lo}–${hi} rep → nhảy +${parseFloat((W - last.weight).toFixed(2))}kg, rep về ~${R}.`;
             else shortReason = justJumped ? `Mới tăng tạ → giữ ${W}kg, thêm rep tới ${hi}.` : `Giữ ${W}kg, thêm rep tới ${hi} rồi nhảy tạ.`;
             if (plateau && (mode === 'jump' || mode === 'build')) shortReason += ' Đang đi ngang.';
 
             const tags = {
-                jump: { text: 'Nhảy tạ', cls: 'bg-amber-950 text-amber-300 border-amber-700/60' },
-                build: { text: justJumped ? 'Giữ tạ' : 'Tăng rep', cls: 'bg-cyan-950 text-cyan-300 border-cyan-700/60' },
-                deload: { text: 'Giảm tải', cls: 'bg-rose-950 text-rose-300 border-rose-700/60' },
-                return: { text: 'Vào lại', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700/60' },
-                deloadWeek: { text: 'Deload tuần', cls: 'bg-sky-950 text-sky-300 border-sky-700/60' }
+                jump: { text: 'Tăng tiến', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700/60' },
+                build: { text: 'Tăng tiến', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700/60' },
+                reduce: { text: 'Giảm tải', cls: 'bg-rose-950 text-rose-300 border-rose-700/60' },
+                return: { text: 'Vào lại', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700/60' }
             };
             return {
-                weight: W, reps: R, mode: mode, shortReason: shortReason, declining: declining, tag: dl ? tags.deloadWeek : tags[mode], reason: reason, alt: alt,
+                weight: W, reps: R, rir: tRIR, mode: mode, shortReason: shortReason, declining: declining, tag: tags[mode], reason: reason, alt: alt,
                 last: last, sessions: n, lo: lo, hi: hi, P: P, repSrc: repSrc, step: step,
                 rateTxt: rateTxt, speedTxt: speedTxt, bwKg: bwKg, phase: phase, calib: calib, calibN: calibN, predE: W * (1 + (R + tRIR) / 30), span: n >= 2 ? (last.t - sessions[0].t) : 0
             };
         }
 
         // =====================================================================
-        // KIỂM SOÁT TẢI & LỊCH DELOAD
-        // Theo dõi khối lượng (tạ x rep) theo cửa sổ 7 ngày trượt, cảnh báo khi:
-        //  - tải 7 ngày vượt 1.3x / 1.5x mức trung bình các tuần trước (tăng quá nhanh)
-        //  - tập liên tục nhiều tuần không có tuần nhẹ
-        //  - tập nhiều ngày liền không nghỉ
-        //  - nhiều bài bị tụt sức mạnh so với đỉnh
-        //  - buổi đang ghi nặng hơn hẳn các buổi gần đây
-        // Khi cần, đề xuất deload 7 ngày và cho phép lên lịch. Lịch lưu ở member.deloads { 'YYYY-MM-DD': { end, reason } }.
+        // ========== SECTION 13: PHÂN TÍCH XU HƯỚNG SỨC MẠNH ========== 
+        // XU HƯỚNG TẠ (những buổi tập gần đây)
+        // Với mỗi buổi tập, so sức mạnh ước tính (e1RM) của từng bài với buổi gần nhất trước đó của chính bài đó,
+        // lấy trung bình có trọng số theo thứ tự bài (1, 1/2, 1/3...) -> % thay đổi của buổi. Nối các buổi lại thành chỉ số (mốc 100) để thấy đang tiến bộ hay không.
+        // Chỉ xét TREND_RECENT_DAYS buổi gần nhất trong ~8 tuần; tăng/giảm từ 2% trở lên mới tính, còn lại là "Đi ngang".
         // =====================================================================
-        const LOAD_DELOAD_DAYS = 7;
-        const LOAD_LEVELS = {
-            ok:     { label: 'Tải ổn định', icon: 'fa-circle-check', box: 'bg-emerald-950/30 border-emerald-700/50', text: 'text-emerald-300' },
-            watch:  { label: 'Cần theo dõi tải', icon: 'fa-triangle-exclamation', box: 'bg-amber-950/30 border-amber-600/50', text: 'text-amber-300' },
-            deload: { label: 'Nên deload', icon: 'fa-battery-quarter', box: 'bg-rose-950/30 border-rose-600/60', text: 'text-rose-300' },
-            active: { label: 'Đang trong tuần deload', icon: 'fa-bed', box: 'bg-sky-950/30 border-sky-600/50', text: 'text-sky-300' },
-            nodata: { label: 'Kiểm soát tải', icon: 'fa-gauge-high', box: 'bg-slate-900/60 border-slate-700', text: 'text-slate-300' }
+        const TREND_WINDOW_DAYS = 56;
+        const TREND_RECENT_DAYS = 8;
+        const TREND_MIN_PCT = 2;
+        const TREND_LEVELS = {
+            up:   { label: 'Tăng',     icon: 'fa-arrow-trend-up',   text: 'text-emerald-300', stroke: '#34d399' },
+            flat: { label: 'Đi ngang', icon: 'fa-minus',            text: 'text-slate-300',   stroke: '#94a3b8' },
+            down: { label: 'Giảm',     icon: 'fa-arrow-trend-down', text: 'text-rose-300',    stroke: '#fb7185' }
         };
 
         function loadIsoOf(dayNum) { return new Date(dayNum * 86400000).toISOString().slice(0, 10); }
         function loadAddDays(dateStr, n) { return loadIsoOf(suggDayNum(dateStr) + n); }
         function loadFmtDate(dateStr) { const p = String(dateStr).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : dateStr; }
-        function loadFmtKg(v) { return Math.round(v).toLocaleString('vi-VN') + ' kg'; }
 
-        function getMemberDeloads(member) {
-            const dl = member && member.deloads;
-            if (!dl || typeof dl !== 'object') return [];
-            return Object.keys(dl).sort().map(k => ({
-                start: k,
-                end: (dl[k] && dl[k].end) || loadAddDays(k, LOAD_DELOAD_DAYS - 1),
-                reason: (dl[k] && dl[k].reason) || ''
-            }));
-        }
-        function getDeloadOn(member, dateStr) {
-            return getMemberDeloads(member).find(d => d.start <= dateStr && dateStr <= d.end) || null;
-        }
+        function trendLevelOf(pct) { return pct >= TREND_MIN_PCT ? 'up' : (pct <= -TREND_MIN_PCT ? 'down' : 'flat'); }
+        function trendPctTxt(pct) { const r = Math.round(pct * 10) / 10; return (r > 0 ? '+' : '') + r.toFixed(1).replace('.', ',') + '%'; }
 
-        function computeLoadStatus(member, dateStr) {
+        // Xu hướng theo các buổi tập gần đây của 1 thành viên (null nếu chưa đủ dữ liệu)
+        function computeRecentTrend(member, dateStr) {
             const dn = suggDayNum(dateStr);
-            const today = getTodayISODate();
-            const res = { level: 'nodata', alerts: [], needDeload: false, active: null, upcoming: null, lastDeloadEnd: null, proposeStart: null, snoozed: false, m: null, note: '' };
-            const dls = getMemberDeloads(member);
-            res.active = dls.find(d => d.start <= dateStr && dateStr <= d.end) || null;
-            res.upcoming = dls.find(d => d.start > dateStr) || null;
-            const ended = dls.filter(d => d.end < dateStr).map(d => d.end).sort();
-            res.lastDeloadEnd = ended.length ? ended[ended.length - 1] : null;
-            res.snoozed = !!member.loadSnoozeUntil && member.loadSnoozeUntil >= today;
-            res.proposeStart = loadAddDays(dateStr > today ? dateStr : today, 1);
-            // Khối lượng từng ngày (bỏ qua ngày trống)
-            const days = {};
-            Object.keys(member.logs || {}).forEach(d => {
-                if (d > dateStr) return;
-                let vol = 0, sets = 0;
-                ((member.logs[d] || {}).exercises || []).forEach(ex => (ex.sets || []).forEach(st => {
-                    const w = parseFloat(st.weight), r = parseFloat(st.reps);
-                    if (w > 0 && r > 0) { vol += w * r; sets++; }
-                }));
-                if (sets > 0) days[d] = { vol: vol, sets: sets, t: suggDayNum(d) };
-            });
-            const dates = Object.keys(days).sort();
-            if (!dates.length) { res.note = 'Chưa có buổi tập nào để đánh giá tải.'; if (res.active) res.level = 'active'; return res; }
-
-            // Đang trong tuần deload: so khối lượng buổi hôm nay với trung bình các buổi bình thường trước deload
-            if (res.active) {
-                res.level = 'active';
-                const pre = dates.filter(d => d < res.active.start && !dls.some(x => x.start <= d && d <= x.end)).slice(-4);
-                if (days[dateStr] && pre.length >= 2) {
-                    const avg = pre.reduce((a, d) => a + days[d].vol, 0) / pre.length;
-                    const r = avg > 0 ? days[dateStr].vol / avg : 0;
-                    if (r > 0.6) {
-                        res.alerts.push({
-                            kind: 'deloadover', soft: true, level: r >= 0.85 ? 'danger' : 'warn',
-                            title: 'Đang tập vượt mức deload',
-                            short: 'tập vượt mức deload',
-                            text: `Khối lượng buổi này ${loadFmtKg(days[dateStr].vol)} = ${Math.round(r * 100)}% một buổi bình thường (${loadFmtKg(avg)}). Buổi deload nên ở khoảng 50–60% trở xuống: bớt set hoặc giảm tạ.`
-                        });
-                    }
-                }
-                return res;
-            }
-            const span = dn - days[dates[0]].t;
-            if (span < 14) { res.note = 'Cần ít nhất 2 tuần nhật ký để đánh giá tải.'; return res; }
-
-            // Cửa sổ 7 ngày trượt, k = 0 là 7 ngày kết thúc tại ngày đang xem
-            const dlDaysIn = (lo, hi) => {
-                let c = 0;
-                for (let t = lo; t <= hi; t++) { const ds = loadIsoOf(t); if (dls.some(d => d.start <= ds && ds <= d.end)) c++; }
-                return c;
-            };
-            const wk = [];
-            for (let k = 0; k < 20; k++) {
-                const hi = dn - 7 * k, lo = hi - 6;
-                let vol = 0, n = 0;
-                dates.forEach(d => { const t = days[d].t; if (t >= lo && t <= hi) { vol += days[d].vol; n++; } });
-                wk.push({ vol: vol, n: n, dl: dlDaysIn(lo, hi) >= 4 });
-            }
-
-            // 1) Tải cấp tính / mãn tính (bỏ các tuần deload khỏi mức nền)
-            const acute = wk[0].vol;
-            const weeksAvail = Math.min(4, Math.floor(span / 7));
-            let chrSum = 0, chrCnt = 0;
-            for (let k = 1; k <= weeksAvail; k++) { if (!wk[k].dl) { chrSum += wk[k].vol; chrCnt++; } }
-            const chrAvg = chrCnt >= 2 ? chrSum / chrCnt : null;
-            const ratio = (chrAvg && chrAvg > 0) ? acute / chrAvg : null;
-            if (ratio !== null && wk[0].n >= 2 && ratio >= 1.3) {
-                res.alerts.push({
-                    kind: 'acwr', level: ratio >= 1.5 ? 'danger' : 'warn',
-                    title: 'Tải tăng quá nhanh',
-                    short: `tải 7 ngày ${ratio.toFixed(2)}× mức nền`,
-                    text: `Khối lượng 7 ngày qua ${loadFmtKg(acute)} = ${ratio.toFixed(2)}× trung bình ${chrCnt} tuần trước (${loadFmtKg(chrAvg)}). Ngưỡng an toàn ≤ 1,3× — nguy cơ quá tải và chấn thương.`
-                });
-            }
-
-            // 2) Số tuần tập liên tục chưa có tuần nhẹ / deload
-            let streak = 0;
-            for (let k = 0; k < wk.length; k++) { if (wk[k].n >= 2 && !wk[k].dl) streak++; else break; }
-            if (streak >= 6) {
-                res.alerts.push({
-                    kind: 'streak', level: streak >= 8 ? 'danger' : 'warn',
-                    title: 'Lâu chưa có tuần nhẹ',
-                    short: `${streak} tuần liên tục chưa deload`,
-                    text: `Đã tập liên tục ${streak} tuần mà chưa có tuần giảm tải. Thông thường nên deload mỗi 4–8 tuần.`
-                });
-            }
-
-            // 3) Số ngày tập liên tiếp
-            let dstreak = 0, tt = days[dateStr] ? dn : dn - 1;
-            while (days[loadIsoOf(tt)]) { dstreak++; tt--; }
-            if (dstreak >= 6) {
-                res.alerts.push({
-                    kind: 'days', level: dstreak >= 7 ? 'danger' : 'warn',
-                    title: 'Tập nhiều ngày liền',
-                    short: `${dstreak} ngày tập liên tiếp`,
-                    text: `Đã tập ${dstreak} ngày liên tiếp không nghỉ — cơ và hệ thần kinh chưa kịp hồi phục. Nên chèn ít nhất 1 ngày nghỉ.`
-                });
-            }
-
-            // 4) Sức mạnh tụt so với đỉnh ở các bài tập gần đây
             const names = new Set();
-            dates.forEach(d => {
-                if (days[d].t >= dn - 28) ((member.logs[d] || {}).exercises || []).forEach(ex => {
+            Object.keys(member.logs || {}).forEach(d => {
+                if (d > dateStr || suggDayNum(d) < dn - TREND_WINDOW_DAYS) return;
+                ((member.logs[d] || {}).exercises || []).forEach(ex => {
                     const n = capitalizeExerciseName(ex.name);
                     if (n) names.add(n);
                 });
             });
-            const decl = [];
-            names.forEach(n => { const sg = getWeightSuggestion(member, n, dateStr, true); if (sg && sg.declining) decl.push(n); });
-            if (decl.length) {
-                res.alerts.push({
-                    kind: 'decline', level: decl.length >= 2 ? 'danger' : 'warn',
-                    title: 'Sức mạnh đang tụt',
-                    short: `${decl.length} bài tụt sức mạnh`,
-                    text: `${decl.map(escapeTextValue).join(', ')} tụt ≥5% so với đỉnh gần đây dù vẫn tập đều — dấu hiệu mệt tích lũy.`
-                });
-            }
-
-            // 5) Buổi đang ghi so với các buổi gần đây (chỉ cảnh báo, không tính vào quyết định deload)
-            if (days[dateStr]) {
-                const prior = dates.filter(d => d < dateStr).slice(-4);
-                if (prior.length >= 3) {
-                    const avg = prior.reduce((a, d) => a + days[d].vol, 0) / prior.length;
-                    const r = avg > 0 ? days[dateStr].vol / avg : 0;
-                    if (r >= 1.3) {
-                        res.alerts.push({
-                            kind: 'session', soft: true, level: r >= 1.5 ? 'danger' : 'warn',
-                            title: 'Buổi hôm nay rất nặng',
-                            short: '',
-                            text: `Khối lượng buổi này ${loadFmtKg(days[dateStr].vol)} = ${r.toFixed(2)}× trung bình ${prior.length} buổi gần nhất. Cân nhắc bớt set phụ để không đẩy tải tuần vọt lên.`
-                        });
-                    }
+            // Mỗi buổi: % thay đổi e1RM của từng bài so với buổi trước đó của chính bài đó
+            const byDate = {};
+            names.forEach(name => {
+                const ss = suggGetSessions(member, name, loadAddDays(dateStr, 1));
+                for (let i = 1; i < ss.length; i++) {
+                    if (ss[i].t < dn - TREND_WINDOW_DAYS || !(ss[i - 1].eff > 0)) continue;
+                    const exercises = member.logs[ss[i].date].exercises || [];
+                    const position = exercises.findIndex(ex => capitalizeExerciseName(ex.name) === name);
+                    const weight = 1 / (Math.max(0, position) + 1);
+                    (byDate[ss[i].date] = byDate[ss[i].date] || []).push({
+                        pct: (ss[i].eff / ss[i - 1].eff - 1) * 100, weight: weight
+                    });
                 }
-            }
-
-            const hard = res.alerts.filter(a => !a.soft);
-            const dangers = hard.filter(a => a.level === 'danger').length;
-            const recent = !!res.lastDeloadEnd && (dn - suggDayNum(res.lastDeloadEnd)) < 14;   // vừa deload xong thì chưa cần nữa
-            res.needDeload = !recent && (dangers >= 1 || hard.length >= 2);
-            res.level = res.needDeload ? 'deload' : (res.alerts.length ? 'watch' : 'ok');
-            res.m = { acute: acute, chrAvg: chrAvg, ratio: ratio, streak: streak, dstreak: dstreak };
-            return res;
+            });
+            const days = Object.keys(byDate).sort().slice(-TREND_RECENT_DAYS).map(d => {
+                const ch = byDate[d];
+                const pct = ch.reduce((sum, x) => sum + x.pct * x.weight, 0) / ch.reduce((sum, x) => sum + x.weight, 0);
+                const counts = { up: 0, flat: 0, down: 0 };
+                ch.forEach(x => { counts[trendLevelOf(x.pct)]++; });
+                return { date: d, pct: pct, n: ch.length, counts: counts, level: trendLevelOf(pct) };
+            });
+            if (days.length < 2) return null;
+            let idx = 100;
+            const pts = [{ t: 0, eff: 100 }];
+            days.forEach((d, i) => { idx *= 1 + d.pct / 100; pts.push({ t: i + 1, eff: idx }); });
+            const pct = idx - 100;
+            return { days: days, pts: pts, pct: pct, level: trendLevelOf(pct) };
         }
 
-        function renderLoadControlPanel(member, dateStr) {
-            const st = computeLoadStatus(member, dateStr);
-            const lv = LOAD_LEVELS[st.level];
-            const today = getTodayISODate();
-            const mid = member.id;
-            const alertIcon = { danger: 'fa-circle-exclamation text-rose-400', warn: 'fa-triangle-exclamation text-amber-400' };
 
-            const alertsHtml = st.alerts.map(a => `
-                                <div class="flex items-start gap-1.5 text-[11px] leading-snug">
-                                    <i class="fa-solid ${alertIcon[a.level]} mt-0.5"></i>
-                                    <div class="text-slate-300"><strong class="text-white">${a.title}.</strong> ${a.text}</div>
-                                </div>`).join('');
-
-            let chips = '';
-            if (st.m) {
-                const rc = st.m.ratio === null ? 'text-slate-300' : (st.m.ratio >= 1.5 ? 'text-rose-300' : (st.m.ratio >= 1.3 ? 'text-amber-300' : 'text-emerald-300'));
-                const chip = (label, val, cls) => `<span class="px-2 py-0.5 rounded-lg bg-slate-900/70 border border-slate-700 text-[10px] text-slate-400">${label}: <strong class="${cls || 'text-slate-200'}">${val}</strong></span>`;
-                chips = `<div class="flex flex-wrap gap-1.5">
-                                ${chip('Tải 7 ngày', loadFmtKg(st.m.acute) + (st.m.ratio !== null ? ` (${st.m.ratio.toFixed(2)}×)` : ''), rc)}
-                                ${chip('Tập liên tục', st.m.streak + ' tuần')}
-                                ${chip('Deload gần nhất', st.lastDeloadEnd ? 'đến ' + loadFmtDate(st.lastDeloadEnd) : 'chưa có')}
-                            </div>`;
-            }
-
-            let actions = '';
-            if (st.active) {
-                const total = suggDayNum(st.active.end) - suggDayNum(st.active.start) + 1;
-                const idx = suggDayNum(dateStr) - suggDayNum(st.active.start) + 1;
-                actions = `
-                            <div class="text-[11px] text-sky-100 leading-snug">Tuần deload <strong>${loadFmtDate(st.active.start)} – ${loadFmtDate(st.active.end)}</strong> · ngày ${idx}/${total}. Làm khoảng <strong>50% số set</strong>, tạ ~<strong>90%</strong> mức thường (đã áp vào gợi ý), dừng cách giới hạn 3–4 rep. Các buổi trong tuần này không được dùng để tính tiến độ.</div>
-                            <button onclick="cancelDeload('${mid}', '${st.active.start}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-lg text-[11px] font-semibold">Kết thúc / hủy deload</button>`;
-            } else if (st.upcoming) {
-                const inDays = suggDayNum(st.upcoming.start) - suggDayNum(today);   // đếm từ HÔM NAY, không phụ thuộc ngày đang xem
-                const inTxt = inDays > 1 ? ` (còn ${inDays} ngày nữa)` : (inDays === 1 ? ' (bắt đầu ngày mai)' : (inDays === 0 ? ' (bắt đầu hôm nay)' : ''));
-                actions = `
-                            <div class="text-[11px] text-sky-100 leading-snug"><i class="fa-solid fa-calendar-check text-sky-400 mr-1"></i>Đã lên lịch deload <strong>${loadFmtDate(st.upcoming.start)} – ${loadFmtDate(st.upcoming.end)}</strong>${inTxt}.${st.upcoming.reason ? ' Lý do: ' + escapeTextValue(st.upcoming.reason) + '.' : ''}</div>
-                            <button onclick="cancelDeload('${mid}', '${st.upcoming.start}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-lg text-[11px] font-semibold">Hủy lịch</button>`;
-            } else if (st.needDeload && !st.snoozed) {
-                actions = `
-                            <div class="text-[11px] text-rose-100 leading-snug"><i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i>Đề xuất <strong>deload ${LOAD_DELOAD_DAYS} ngày</strong>: giảm ~50% số set, tạ ~90%, dừng cách giới hạn 3–4 rep.</div>
-                            <div class="flex flex-wrap items-center gap-2">
-                                <input id="deloadStart_${mid}" type="date" min="${today}" value="${st.proposeStart}" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-emerald-300 font-semibold focus:outline-none">
-                                <button onclick="scheduleDeload('${mid}')" class="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[11px] font-bold shadow">Lên lịch deload</button>
-                                <button onclick="snoozeLoadWarning('${mid}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 rounded-lg text-[11px] font-semibold">Để sau 7 ngày</button>
-                            </div>`;
-            } else {
-                actions = `
-                            ${st.needDeload && st.snoozed ? `<div class="text-[10px] text-slate-500">Đã hoãn nhắc deload đến ${loadFmtDate(member.loadSnoozeUntil)}.</div>` : ''}
-                            <details class="text-[11px]">
-                                <summary class="cursor-pointer text-slate-400 hover:text-slate-200">Lên lịch deload thủ công</summary>
-                                <div class="flex flex-wrap items-center gap-2 mt-1.5">
-                                    <input id="deloadStart_${mid}" type="date" min="${today}" value="${st.proposeStart}" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-emerald-300 font-semibold focus:outline-none">
-                                    <button onclick="scheduleDeload('${mid}')" class="px-3 py-1 bg-sky-700 hover:bg-sky-600 text-white rounded-lg text-[11px] font-bold">Lên lịch ${LOAD_DELOAD_DAYS} ngày</button>
-                                </div>
-                            </details>`;
-            }
-
-            return `
-                    <div class="border ${lv.box} rounded-xl p-3 space-y-2">
-                        <div class="flex items-center justify-between gap-2">
-                            <div class="text-xs font-bold ${lv.text} flex items-center gap-1.5"><i class="fa-solid ${lv.icon}"></i> ${lv.label}</div>
-                            ${st.note ? `<span class="text-[10px] text-slate-500">${st.note}</span>` : ''}
-                        </div>
-                        ${chips}
-                        ${alertsHtml ? `<div class="space-y-1">${alertsHtml}</div>` : ''}
-                        <div class="space-y-1.5">${actions}
-                        </div>
-                    </div>`;
+        function renderTrendPanel(member, dateStr) {
+            const tr = computeRecentTrend(member, dateStr);
+            const label = '<i class="fa-solid fa-chart-line text-emerald-400 mr-1"></i> Xu hướng tạ: ';
+            if (!tr) return `<div class="border border-slate-700 bg-slate-900/60 rounded-xl p-3 text-xs text-slate-400">${label}Chưa đủ dữ liệu</div>`;
+            const lv = TREND_LEVELS[tr.level];
+            const verdict = { up: 'Bạn đang tiến bộ', flat: 'Sức mạnh đang đi ngang', down: 'Sức mạnh đang giảm' }[tr.level];
+            const tip = `Sau ${tr.days.length} buổi gần nhất; bài đầu buổi có trọng số lớn hơn (1, 1/2, 1/3...).`;
+            return `<div title="${tip}" class="border border-slate-700 bg-slate-900/60 rounded-xl p-3 text-xs"><span class="font-bold text-slate-100">${label}</span><span class="font-bold ${lv.text}"><i class="fa-solid ${lv.icon} mr-1"></i>${verdict} ${trendPctTxt(tr.pct)} (${TREND_RECENT_DAYS} buổi gần đây)</span></div>`;
         }
 
-        // Thẻ tổng quan cho cả nhóm: ai đang/sắp deload hoặc nên deload
-        function renderLoadOverviewCard() {
+        // Thẻ tổng quan cho cả nhóm: mỗi người đang tiến bộ / đi ngang / giảm so với các buổi tập gần đây
+        function renderTrendOverviewCard() {
             const today = getTodayISODate();
             const rows = [];
             (window.appData.members || []).forEach(m => {
-                const st = computeLoadStatus(m, today);
-                let txt = '', cls = '';
-                if (st.active) {
-                    const over = st.alerts.some(a => a.kind === 'deloadover');
-                    txt = `Đang deload đến ${loadFmtDate(st.active.end)}${over ? ' · tập vượt mức deload' : ''}`; cls = over ? 'text-amber-300' : 'text-sky-300';
-                }
-                else if (st.upcoming) { txt = `Deload ${loadFmtDate(st.upcoming.start)} – ${loadFmtDate(st.upcoming.end)}`; cls = 'text-sky-300'; }
-                else if (st.needDeload && !st.snoozed) {
-                    txt = 'Nên deload: ' + st.alerts.filter(a => !a.soft).map(a => a.short).join(' · ');
-                    cls = 'text-rose-300';
-                }
-                if (txt) rows.push(`<button onclick="switchTab('${m.id}')" class="w-full text-left flex items-center justify-between gap-2 bg-slate-900/60 hover:bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-[11px]"><strong class="text-white">${escapeTextValue(m.name)}</strong><span class="${cls} text-right">${txt}</span></button>`);
+                const tr = computeRecentTrend(m, today);
+                if (!tr) return;
+                const lv = TREND_LEVELS[tr.level];
+                rows.push(`<button onclick="switchTab('${m.id}')" class="w-full text-left flex items-center justify-between gap-2 bg-slate-900/60 hover:bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-[11px]"><strong class="text-white">${escapeTextValue(m.name)}</strong><span class="flex items-center gap-1.5 font-semibold ${lv.text}"><i class="fa-solid ${lv.icon} text-[10px]"></i> ${lv.label} ${trendPctTxt(tr.pct)}</span></button>`);
             });
             if (!rows.length) return '';
             return `
-                    <div class="bg-cardbg border border-amber-600/40 rounded-2xl p-4 shadow-lg space-y-2">
-                        <h3 class="text-xs font-bold text-slate-100 flex items-center gap-1.5"><i class="fa-solid fa-battery-quarter text-amber-400"></i> Kiểm soát tải &amp; Deload</h3>
+                    <div class="bg-cardbg border border-cardborder rounded-2xl p-4 shadow-lg space-y-2">
+                        <h3 class="text-xs font-bold text-slate-100 flex items-center gap-1.5"><i class="fa-solid fa-chart-line text-emerald-400"></i> Xu hướng tạ <span class="text-[10px] font-normal text-slate-500">· ${TREND_RECENT_DAYS} buổi gần nhất</span></h3>
                         ${rows.join('')}
                     </div>`;
         }
 
-        function scheduleDeload(memberId) {
-            const member = window.appData.members.find(m => m.id === memberId);
-            const input = document.getElementById('deloadStart_' + memberId);
-            if (!member || !input || !input.value) { showToast('Chọn ngày bắt đầu deload', 'error'); return; }
-            const start = input.value;
-            if (start < getTodayISODate()) { showToast('Ngày bắt đầu phải từ hôm nay trở đi', 'error'); return; }
-            const end = loadAddDays(start, LOAD_DELOAD_DAYS - 1);
-            if (getMemberDeloads(member).some(d => d.start <= end && d.end >= start)) { showToast('Trùng với lịch deload đã có', 'error'); return; }
-            const st = computeLoadStatus(member, member.selectedDate || getTodayISODate());
-            const reason = st.needDeload ? st.alerts.filter(a => !a.soft).map(a => a.short).join('; ') : 'Chủ động';
-            if (!member.deloads || typeof member.deloads !== 'object') member.deloads = {};
-            member.deloads[start] = { end: end, reason: reason };
-            delete member.loadSnoozeUntil;
+
+        // ========== SECTION 14: THAO TÁC NHẬT KÝ / SET / BÀI TẬP ========== 
+        // Đổi thứ tự trong mảng bài tập hiện có để persistData đồng bộ như nhật ký thông thường.
+        function moveLogExercise(memberId, dateStr, from, to, expectedOrder) {
+            const member = (window.appData.members || []).find(m => m.id === memberId);
+            const exercises = member?.logs?.[dateStr]?.exercises;
+            if (!exercises || from === to || from < 0 || to < 0 || from >= exercises.length || to >= exercises.length) return false;
+            if (expectedOrder && (exercises.length !== expectedOrder.length || exercises.some((ex, i) => ex !== expectedOrder[i]))) return false;
+            const [exercise] = exercises.splice(from, 1);
+            exercises.splice(to, 0, exercise);
             persistData();
             renderContent();
-            showToast(`Đã lên lịch deload ${loadFmtDate(start)} – ${loadFmtDate(end)}`);
+            return true;
         }
 
-        function cancelDeload(memberId, startKey) {
-            const member = window.appData.members.find(m => m.id === memberId);
-            if (!member || !member.deloads || !member.deloads[startKey]) return;
-            const today = getTodayISODate();
-            if (startKey <= today && member.deloads[startKey].end >= today) {
-                // đang diễn ra: rút ngắn đến hôm qua nếu đã qua ngày đầu, ngược lại xóa hẳn
-                if (startKey < today) member.deloads[startKey].end = loadAddDays(today, -1);
-                else delete member.deloads[startKey];
-            } else {
-                delete member.deloads[startKey];
+        // Giữ khung bài 120ms để nhấc lên; chỉ lưu thứ tự khi thả tay.
+        function startExerciseReorder(event, memberId, index) {
+            if (!event.isPrimary || event.button !== 0) return;
+            if (event.target.closest('input, textarea, select, button, a, label, summary, [contenteditable]')) return;
+            event.preventDefault();
+            document.activeElement?.blur();
+            const member = (window.appData.members || []).find(m => m.id === memberId);
+            const dateStr = member?.selectedDate || getTodayISODate();
+            const exercises = member?.logs?.[dateStr]?.exercises;
+            const container = document.getElementById('memberExercisesContainer');
+            const card = container?.querySelector('[data-exercise-index="' + index + '"]');
+            if (!exercises || !card) return;
+            const expectedOrder = exercises.slice();
+            startListReorder(event, container, card,
+                to => moveLogExercise(memberId, dateStr, index, to, expectedOrder), renderContent);
+        }
+
+        // Dùng chung hiệu ứng nhấc/kéo/thả cho nhật ký và cài đặt routine.
+        function startListReorder(event, container, card, commit, redraw, fromHandle = false) {
+            const pointerId = event.pointerId;
+            const root = document.documentElement;
+            const rect = card.getBoundingClientRect();
+            const offsetY = event.clientY - rect.top;
+            const others = Array.from(container.children).filter(el => el !== card);
+            const scroller = container.closest('.overflow-y-auto');
+            const mouseDrag = event.pointerType === 'mouse';
+            const originalIndex = Array.from(container.children).indexOf(card);
+            let pointerY = event.clientY, ghost = null, marker = null, frame = null;
+            let finished = false, lastTime = null, destination = originalIndex;
+            root.setPointerCapture(pointerId);
+
+            function finish(e) {
+                if (finished || e.pointerId !== pointerId) return;
+                if (e.type === 'pointerup' && ghost && container.isConnected) {
+                    if (Number.isFinite(e.clientY)) pointerY = e.clientY;
+                    paint();
+                }
+                finished = true;
+                clearTimeout(holdTimer);
+                cancelAnimationFrame(frame);
+                document.removeEventListener('pointermove', move);
+                document.removeEventListener('touchmove', touchMove);
+                document.removeEventListener('pointerup', finish);
+                document.removeEventListener('pointercancel', finish);
+                root.removeEventListener('lostpointercapture', finish);
+                window.removeEventListener('blur', cancel);
+                document.removeEventListener('visibilitychange', visibility);
+                if (root.hasPointerCapture(pointerId)) root.releasePointerCapture(pointerId);
+                if (!ghost) return;
+                ghost.remove();
+                marker.remove();
+                card.classList.remove('opacity-30', 'ring-2', 'ring-emerald-400');
+                if (!container.isConnected) return;
+                if (e.type === 'pointerup' && !commit(destination)) redraw();
             }
-            persistData();
-            renderContent();
-            showToast('Đã cập nhật lịch deload');
-        }
+            function cancel() { finish({ pointerId: pointerId, type: 'pointercancel' }); }
+            function visibility() { if (document.visibilityState !== 'visible') cancel(); }
+            function move(e) {
+                if (e.pointerId !== pointerId) return;
+                pointerY = e.clientY;
+                const distance = Math.hypot(e.clientX - event.clientX, e.clientY - event.clientY);
+                if (!ghost && distance > ((fromHandle || mouseDrag) ? 3 : 12)) {
+                    if (fromHandle || mouseDrag) { clearTimeout(holdTimer); lift(); }
+                    else { cancel(); return; }
+                }
+                if (ghost) e.preventDefault();
+            }
+            function touchMove(e) { if (ghost && e.cancelable) e.preventDefault(); }
 
-        function snoozeLoadWarning(memberId) {
-            const member = window.appData.members.find(m => m.id === memberId);
-            if (!member) return;
-            member.loadSnoozeUntil = loadAddDays(getTodayISODate(), 7);
-            persistData();
-            renderContent();
-            showToast('Sẽ nhắc lại sau 7 ngày');
+            // Chỉ di chuyển lớp nổi và vạch thả; không chèn lại các bài khi đang kéo.
+            function paint() {
+                ghost.style.transform = 'translate3d(0,' + (pointerY - offsetY - rect.top) + 'px,0)';
+                const bounds = others.map(el => el.getBoundingClientRect());
+                let target = bounds.findIndex(b => pointerY < b.top + b.height / 2);
+                if (target < 0) target = others.length;
+                destination = target;
+                const lineY = target < bounds.length ? bounds[target].top - 4
+                    : (bounds.length ? bounds[bounds.length - 1].bottom + 4 : card.getBoundingClientRect().top);
+                marker.style.transform = 'translate3d(0,' + lineY + 'px,0)';
+                marker.style.opacity = destination === originalIndex ? '0' : '1';
+            }
+            function tick(now) {
+                if (finished) return;
+                if (!container.isConnected) { cancel(); return; }
+                const viewport = scroller ? scroller.getBoundingClientRect() : { top: 30, bottom: window.innerHeight - 40 };
+                const dt = lastTime === null ? 1 / 60 : Math.min(0.032, Math.max(0, (now - lastTime) / 1000));
+                lastTime = now;
+                const edge = 60;
+                const up = Math.min(1, Math.max(0, (viewport.top + edge - pointerY) / edge));
+                const down = Math.min(1, Math.max(0, (pointerY - viewport.bottom + edge) / edge));
+                const scroll = (down - up) * 600 * dt;
+                if (scroll) {
+                    if (scroller) scroller.scrollTop += scroll;
+                    else window.scrollBy(0, scroll);
+                }
+                paint();
+                frame = requestAnimationFrame(tick);
+            }
+            function lift() {
+                if (ghost || finished) return;
+                if (!container.isConnected) { cancel(); return; }
+                hideAllPredictiveDropdowns();
+                ghost = card.cloneNode(true);
+                ghost.removeAttribute('data-exercise-index');
+                ghost.removeAttribute('data-routine-exercise-index');
+                ghost.removeAttribute('id');
+                ghost.querySelectorAll('*').forEach(el => {
+                    Array.from(el.attributes).forEach(attr => {
+                        if (attr.name === 'id' || attr.name.startsWith('on')) el.removeAttribute(attr.name);
+                    });
+                });
+                ghost.setAttribute('aria-hidden', 'true');
+                ghost.setAttribute('inert', '');
+                Object.assign(ghost.style, {
+                    position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
+                    width: rect.width + 'px', margin: '0', zIndex: '100', pointerEvents: 'none',
+                    willChange: 'transform', transition: 'none', transform: 'translate3d(0,0,0)',
+                    boxShadow: '0 18px 45px rgba(0,0,0,0.55)', opacity: '0.95'
+                });
+                ghost.classList.add('ring-2', 'ring-emerald-400', 'bg-cardbg');
+                marker = document.createElement('div');
+                marker.setAttribute('aria-hidden', 'true');
+                Object.assign(marker.style, {
+                    position: 'fixed', left: rect.left + 'px', top: '0', width: rect.width + 'px',
+                    height: '3px', borderRadius: '3px', background: '#34d399',
+                    boxShadow: '0 0 8px rgba(52,211,153,.55)', pointerEvents: 'none',
+                    zIndex: '101', willChange: 'transform'
+                });
+                document.body.appendChild(ghost);
+                document.body.appendChild(marker);
+                card.classList.add('opacity-30', 'ring-2', 'ring-emerald-400');
+                paint();
+                frame = requestAnimationFrame(tick);
+            }
+            const holdTimer = setTimeout(lift, fromHandle ? 80 : 120);
+            document.addEventListener('pointermove', move, { passive: false });
+            document.addEventListener('touchmove', touchMove, { passive: false });
+            document.addEventListener('pointerup', finish);
+            document.addEventListener('pointercancel', finish);
+            root.addEventListener('lostpointercapture', finish);
+            window.addEventListener('blur', cancel);
+            document.addEventListener('visibilitychange', visibility);
         }
 
         function renderSuggestionRow(member, exIndex, sug) {
-            const diff = Math.round((sug.weight - sug.last.weight) * 100) / 100;
-            const diffTxt = diff > 0 ? '+' + diff : (diff < 0 ? String(diff) : '=');
             const parts = sug.last.date.split('-');
             const dd = parts.length === 3 ? `${parts[2]}/${parts[1]}` : sug.last.date;
             const rirTxt = sug.last.rir !== null ? ` RIR ${sug.last.rir}` : '';
-            const tip = `${sug.reason} · Dựa trên ${sug.sessions} buổi (${sug.span} ngày). Buổi ${dd}: ${sug.last.weight}kg x ${sug.last.reps}${rirTxt}. Khung rep ${sug.lo}-${sug.hi} (${sug.repSrc}; thường ~${sug.P} rep). Bước tạ ${sug.step}kg. Nhịp tăng: ${sug.rateTxt}, ${sug.speedTxt}.${sug.phase ? ' Chế độ: ' + ({ bulk: 'Bulking', cut: 'Cutting', maintain: 'Maingain' })[sug.phase] + '.' : ''}${sug.bwKg ? ' Cân nặng: ' + sug.bwKg + '.' : ''}${sug.calibN >= 3 ? ' Hiệu chỉnh theo thực tế: ' + ((sug.calib - 1) * 100).toFixed(1) + '%.' : ''}`;
-            const altBtn = sug.alt ? `<button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.alt.weight}, ${sug.alt.reps})" title="${sug.alt.label}" class="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-md text-[11px] font-semibold">${sug.alt.weight}×${sug.alt.reps}</button>` : '';
+            const tip = `${sug.reason} · e1RM = Tạ×(1+(Rep+RIR)/30), nhắm RIR ${sug.rir}. Dựa trên ${sug.sessions} buổi (${sug.span} ngày). Buổi ${dd}: ${sug.last.weight}kg x ${sug.last.reps}${rirTxt}. Khung rep ${sug.lo}-${sug.hi} (${sug.repSrc}; thường ~${sug.P} rep). Bước tạ ${sug.step}kg. Nhịp tăng: ${sug.rateTxt}, ${sug.speedTxt}.${sug.phase ? ' Chế độ: ' + ({ bulk: 'Bulking', cut: 'Cutting', maintain: 'Maingain' })[sug.phase] + '.' : ''}${sug.bwKg ? ' Cân nặng: ' + sug.bwKg + '.' : ''}${sug.calibN >= 3 ? ' Hiệu chỉnh theo thực tế: ' + ((sug.calib - 1) * 100).toFixed(1) + '%.' : ''}`;
+            const altBtn = sug.alt ? `<button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.alt.weight}, ${sug.alt.reps}, ${sug.rir})" title="${sug.alt.label} (RIR ${sug.rir})" class="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-md text-[11px] font-semibold">${sug.alt.weight}×${sug.alt.reps}</button>` : '';
             return `
-                        <div title="${tip}" class="bg-indigo-950/40 border border-indigo-500/30 rounded-lg px-2 py-1 space-y-0.5">
-                            <div class="flex items-center justify-between gap-2">
-                                <div class="text-[11px] text-indigo-200 min-w-0">
-                                    <i class="fa-solid fa-wand-magic-sparkles text-amber-400 mr-1"></i>Gợi ý: <strong class="text-white">${sug.weight} kg × ${sug.reps}</strong>
-                                    <span class="ml-1 px-1.5 py-px rounded-full border text-[9px] font-semibold ${sug.tag.cls}">${sug.tag.text}</span>
-                                    <span class="text-slate-400">(${diffTxt} so với ${dd})</span>
-                                </div>
-                                <div class="shrink-0 flex items-center gap-1">
-                                    ${altBtn}
-                                    <button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.weight}, ${sug.reps})" class="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[11px] font-semibold">Điền</button>
-                                </div>
+                        <div title="${tip}" class="bg-indigo-950/40 border border-indigo-500/30 rounded-lg px-2 py-1.5 flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
+                            <div class="grid items-center gap-x-2 gap-y-1 text-[11px] tabular-nums" style="grid-template-columns: auto max-content max-content max-content max-content;">
+                                <span class="text-indigo-200 inline-flex items-center gap-1"><i class="fa-solid fa-wand-magic-sparkles text-amber-400 w-3 text-center shrink-0" aria-hidden="true"></i><span>Gợi ý:</span></span>
+                                <strong class="text-white text-center">${sug.weight} kg</strong>
+                                <strong class="text-white text-right">× ${sug.reps}</strong>
+                                <span class="text-emerald-300 font-semibold" title="Số rep còn dư nên chừa lại">· RIR ${sug.rir}</span>
+                                <span class="px-1.5 py-px rounded-full border text-[9px] font-semibold whitespace-nowrap ${sug.tag.cls}">${sug.tag.text}</span>
+                                <span class="text-slate-400 inline-flex items-center gap-1"><i class="fa-regular fa-calendar w-3 text-center shrink-0" aria-hidden="true"></i><span>${dd}:</span></span>
+                                <span class="text-slate-400 text-center">${sug.last.weight} kg</span>
+                                <span class="text-slate-400 text-right">× ${sug.last.reps}</span>
+                                <span class="text-slate-400">${sug.last.rir !== null && sug.last.rir !== undefined ? `· RIR ${sug.last.rir}` : ''}</span>
+                                <span aria-hidden="true"></span>
                             </div>
-                            <div class="text-[10px] text-slate-400 leading-snug">${sug.shortReason}</div>
+                            <div class="shrink-0 flex flex-wrap items-center gap-1">
+                                ${altBtn}
+                                <button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.weight}, ${sug.reps}, ${sug.rir})" class="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[11px] font-semibold">Điền</button>
+                            </div>
                         </div>`;
         }
 
@@ -2630,7 +2623,7 @@ ${phaseGroupHtml}
             showToast(cur === mode ? 'Đã bỏ chế độ' : `Đã đặt ${TRAIN_PHASES[mode].label} từ ${pp[2]}/${pp[1]}`);
         }
 
-        function applyWeightSuggestion(memberId, exIndex, weight, reps) {
+        function applyWeightSuggestion(memberId, exIndex, weight, reps, rir) {
             const member = window.appData.members.find(m => m.id === memberId);
             if (!member) return;
             const dateStr = member.selectedDate || getTodayISODate();
@@ -2642,6 +2635,7 @@ ${phaseGroupHtml}
                 if (!st.weight) {
                     st.weight = weight;
                     if (!st.reps) st.reps = reps;
+                    if (typeof rir === 'number' && !isNaN(rir)) st.rir = rir;
                     filled++;
                 }
             });
@@ -2667,7 +2661,7 @@ ${phaseGroupHtml}
                 const sug = getWeightSuggestion(member, ex.name, suggestDate);
                 const sugHtml = sug ? renderSuggestionRow(member, exIndex, sug) : '';
                 return `
-                    <div class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
+                    <div data-exercise-index="${exIndex}" onpointerdown="startExerciseReorder(event, '${member.id}', ${exIndex})" style="touch-action: pan-y;" class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative cursor-grab active:cursor-grabbing">
                         <div class="flex justify-between items-center gap-2 border-b border-slate-700 pb-2">
                             <div class="flex-1 relative predictive-input-container">
                                 <input type="text" value="${String(ex.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" placeholder="Nhập tên bài tập..." autocomplete="off"
@@ -2694,13 +2688,13 @@ ${phaseGroupHtml}
                                         <th class="pb-1 font-semibold">TẠ (KG)</th>
                                         <th class="pb-1 font-semibold">REPS</th>
                                         <th class="pb-1 w-12 font-semibold text-center" title="Reps in reserve - số rep còn dư. Mặc định 0 = tập tới giới hạn">RIR</th>
-                                        <th class="pb-1 w-[3.75rem] font-semibold">1RM</th>
+                                        <th class="pb-1 w-[3.75rem] font-semibold" title="e1RM = Tạ × (1 + (Rep + RIR) / 30)">1RM</th>
                                         <th class="pb-1 w-6"></th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-700/70">
                                     ${(ex.sets || []).map((s, setIndex) => {
-                                        const estRM = calculate1RM(s.weight, s.reps);
+                                        const estRM = calculate1RM(s.weight, s.reps, s.rir);
                                         const rirVal = (s.rir === undefined || s.rir === null || s.rir === '') ? 0 : s.rir;
                                         return `
                                             <tr>
@@ -2933,6 +2927,7 @@ ${phaseGroupHtml}
             }
         }
 
+        // ========== SECTION 15: KHO BÀI TẬP (EXERCISE LIBRARY) ========== 
         // Quản lý Kho Bài Tập (Exercise Library Modal)
         function openExerciseLibraryModal() {
             renderExerciseLibraryModalList();
@@ -3032,6 +3027,7 @@ ${phaseGroupHtml}
             }
         }
 
+        // ========== SECTION 16: MẪU BUỔI TẬP + LỊCH TẬP TUẦN ========== 
         // Quản lý Modal Mẫu Buổi Tập & Lịch Tuần
         function openRoutineModal() {
             renderWeeklyScheduleInputs();
@@ -3098,8 +3094,10 @@ ${phaseGroupHtml}
                         </div>
 
                         <div class="space-y-1.5 pl-2 border-l-2 border-slate-800">
+                            <div id="routineExercises_${rIndex}" class="space-y-1.5">
                             ${(r.exercises || []).map((ex, exIdx) => `
-                                <div class="flex items-center gap-2">
+                                <div data-routine-exercise-index="${exIdx}" onpointerdown="startRoutineExerciseReorder(event, ${rIndex}, ${exIdx})" style="touch-action: pan-y;" class="flex items-center gap-2 px-2 py-1 rounded-lg cursor-grab active:cursor-grabbing">
+                                    <button type="button" data-routine-drag-handle title="Kéo để đổi thứ tự bài tập" aria-label="Kéo bài tập ${exIdx + 1}" onpointerdown="event.stopPropagation(); startRoutineExerciseReorder(event, ${rIndex}, ${exIdx})" oncontextmenu="event.preventDefault()" style="touch-action: none; -webkit-touch-callout: none;" class="shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-emerald-400 bg-slate-900 px-2 py-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"><svg width="12" height="20" viewBox="0 0 24 36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="pointer-events-none"><path d="M12 14V3m-5 5 5-5 5 5M3 18h18M12 22v11m-5-5 5 5 5-5"/></svg></button>
                                     <div class="relative flex-1 routine-predictive-container">
                                         <input type="text" value="${String(ex.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" placeholder="Nhập tên bài tập..." autocomplete="off"
                                             onfocus="showRoutinePredictiveDropdown(this, ${rIndex}, ${exIdx})"
@@ -3113,6 +3111,7 @@ ${phaseGroupHtml}
                                     </button>
                                 </div>
                             `).join('')}
+                            </div>
                             
                             <button onclick="addExerciseToRoutineTemplate(${rIndex})" class="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold pt-1">
                                 + Thêm bài tập vào mẫu
@@ -3123,6 +3122,34 @@ ${phaseGroupHtml}
             });
 
             container.innerHTML = html;
+        }
+
+        function moveRoutineExercise(routine, from, to, expectedOrder) {
+            if (!(window.appData.routines || []).includes(routine)) return false;
+            const exercises = routine.exercises;
+            if (!exercises || from === to || from < 0 || to < 0 || from >= exercises.length || to >= exercises.length) return false;
+            if (exercises.length !== expectedOrder.length || exercises.some((ex, i) => ex !== expectedOrder[i])) return false;
+            const [exercise] = exercises.splice(from, 1);
+            exercises.splice(to, 0, exercise);
+            saveLocalDataOnly();
+            renderRoutinesList();
+            return true;
+        }
+
+        function startRoutineExerciseReorder(event, rIndex, exIdx) {
+            if (!event.isPrimary || event.button !== 0) return;
+            const fromHandle = !!event.target.closest('[data-routine-drag-handle]');
+            if (!fromHandle && event.target.closest('input, textarea, select, button, a, label, summary, [contenteditable]')) return;
+            event.preventDefault();
+            document.activeElement?.blur();
+            const routine = window.appData.routines?.[rIndex];
+            const container = document.getElementById('routineExercises_' + rIndex);
+            const card = container?.querySelector('[data-routine-exercise-index="' + exIdx + '"]');
+            if (!routine?.exercises || !card) return;
+            const expectedOrder = routine.exercises.slice();
+            document.querySelectorAll('[id^="routine_pred_dropdown_"]').forEach(el => el.classList.add('hidden'));
+            startListReorder(event, container, card,
+                to => moveRoutineExercise(routine, exIdx, to, expectedOrder), renderRoutinesList, fromHandle);
         }
 
         function createNewRoutineTemplate() {
@@ -3219,6 +3246,7 @@ ${phaseGroupHtml}
             }
         }
 
+        // ========== SECTION 17: QUẢN LÝ THÀNH VIÊN ========== 
         // Modal Thành Viên & Sync Group Code
         function openAddMemberModal() {
             document.getElementById('addMemberModal').classList.remove('hidden');
@@ -3323,6 +3351,7 @@ ${phaseGroupHtml}
             showToast("Đã xóa thành viên!");
         }
 
+        // ========== SECTION 18: GIAO DIỆN KẾT NỐI NHÓM + BACKUP / EXPORT ========== 
         // Modal Đồng bộ Cloud Sync
         function openSyncModal() {
             document.getElementById('syncGroupCodeInput').value = window.currentGroupCode || '';
@@ -3438,6 +3467,7 @@ ${phaseGroupHtml}
             downloadAnchor.remove();
         }
 
+        // ========== SECTION 19: ĐIỂM KHỞI CHẠY ỨNG DỤNG ========== 
         // Khởi chạy ứng dụng khi DOM sẵn sàng
         window.onload = function() {
             initApp();
