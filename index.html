@@ -144,6 +144,16 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             background-color: #1e293b;
             color: #f8fafc;
         }
+        details[data-transfer-picker][open] > summary {
+            color: #a5b4fc;
+            background-color: rgba(49, 46, 129, 0.55);
+            border-color: #818cf8;
+            box-shadow: 0 0 8px rgba(129, 140, 248, 0.25);
+        }
+        [data-exercise-index] > .entry-suggestions { display: none; }
+        [data-exercise-index]:has(input[type="number"]:focus) > .entry-suggestions,
+        [data-exercise-index] > .entry-suggestions:focus-within,
+        [data-exercise-index] > .entry-suggestions:hover { display: block; }
     </style>
 </head>
 <body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col">
@@ -405,15 +415,23 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(170px,0.52fr)] gap-2">
                         <input type="text" id="libNewExName" placeholder="Tên bài (VD: Bulgarian Split Squat)" class="min-w-0 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
                         <select id="libNewExCategory" class="min-w-0 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-medium focus:outline-none">
-                            <option value="Chest">Ngực (Chest)</option>
-                            <option value="Back">Lưng/Xô (Back)</option>
-                            <option value="Legs">Chân/Đùi (Legs)</option>
-                            <option value="Shoulders">Vai (Shoulders)</option>
-                            <option value="Arms">Tay (Arms)</option>
-                            <option value="Core">Bụng/Core</option>
-                            <option value="Cardio">Cardio / Khác</option>
+                            <option value="Chest">Ngực</option>
+                            <option value="Lats">Xô</option>
+                            <option value="Traps">Traps</option>
+                            <option value="Quads">Đùi</option>
+                            <option value="Hamstrings">Hamstring</option>
+                            <option value="Calves">Calf</option>
+                            <option value="Glutes">Mông</option>
+                            <option value="Shoulders">Vai</option>
+                            <option value="Biceps">Tay trước</option>
+                            <option value="Triceps">Tay sau</option>
+                            <option value="Forearms">Cẳng tay</option>
+                            <option value="Core">Core</option>
+                            <option value="Cardio">Cardio</option>
+                            <option value="Khác">Khác / chưa phân loại</option>
                         </select>
                     </div>
+                    <label class="inline-flex items-center gap-1.5 text-xs text-slate-300"><input id="libNewExBodyweight" type="checkbox" class="accent-emerald-400">Bodyweight · tạ thêm</label>
                     <button onclick="addExerciseToLibrary()" class="w-full py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold rounded-xl text-xs transition">
                         + Lưu Vào Kho Bài Tập
                     </button>
@@ -455,7 +473,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
     <!-- App Footer -->
     <footer class="bg-slate-900 border-t border-cardborder py-3 text-center text-[11px] text-slate-500 mt-auto">
-        LOCHEOFITNESS &copy; Realtime Cloud Sync & e1RM = W(1 + (R + RIR)/30)
+        LOCHEOFITNESS &copy; Realtime Cloud Sync & e1RM trung bình Epley · Brzycki · Lander
     </footer>
 
     <!-- ========== SECTION 05: CLOUD SYNC ENGINE (CLOUDFLARE + D1) ========== -->
@@ -463,9 +481,9 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
     <script>
         (function() {
             const SYNC_STATE_KEY = 'gym_group_tracker_sync_state_v1';
-            // Poll thông minh: 5s -> 10s -> 30s khi không có thay đổi; có thay đổi/thao tác thì về 5s.
+            // Poll mỗi 60 giây; đẩy thay đổi vẫn giữ cơ chế hiện tại.
             // Tab ẩn thì dừng hẳn.
-            const POLL_STEPS_MS = [5000, 10000, 30000];
+            const POLL_STEPS_MS = [60000];
             // Routine, lịch tuần và trạng thái giao diện riêng từng máy, không đồng bộ giữa các thành viên
             const LOCAL_ONLY_KEYS = ['routines', 'weeklySchedule', 'activeTab'];
             const LOCAL_ONLY_MEMBER_KEYS = ['selectedDate'];
@@ -579,10 +597,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         applyRemote(merged);
                         schedulePush(0);
                     } else {
-                        const changed = !same(local, body.data);
                         syncBase = body.data;
                         applyRemote(body.data);
-                        if (changed) showToast("Đã đồng bộ dữ liệu từ nhóm!", "cloud");
                     }
                     saveSyncState();
                     return 'changed';
@@ -652,7 +668,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     console.warn('Sync push failed:', err);
                     setConnected(false);
                     // Thử lại sau, dữ liệu vẫn được giữ trên máy
-                    schedulePush(POLL_STEPS_MS[0] * 2);
+                    schedulePush(10000); // Giữ nhịp thử lại khi gửi lỗi, độc lập với chu kỳ poll.
                 } finally {
                     pushing = false;
                     if (pushQueued) { pushQueued = false; schedulePush(0); }
@@ -836,16 +852,16 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             { name: "Bench Press", category: "Chest" },
             { name: "Incline Dumbbell Press", category: "Chest" },
             { name: "Chest Fly", category: "Chest" },
-            { name: "Squat", category: "Legs" },
-            { name: "Leg Press", category: "Legs" },
-            { name: "Romanian Deadlift", category: "Legs" },
+            { name: "Squat", category: "Quads" },
+            { name: "Leg Press", category: "Quads" },
+            { name: "Romanian Deadlift", category: "Hamstrings" },
             { name: "Deadlift", category: "Back" },
-            { name: "Barbell Row", category: "Back" },
-            { name: "Lat Pulldown", category: "Back" },
+            { name: "Barbell Row", category: "Traps" },
+            { name: "Lat Pulldown", category: "Lats" },
             { name: "Overhead Press", category: "Shoulders" },
             { name: "Lateral Raise", category: "Shoulders" },
-            { name: "Bicep Curl", category: "Arms" },
-            { name: "Tricep Extension", category: "Arms" }
+            { name: "Bicep Curl", category: "Biceps" },
+            { name: "Tricep Extension", category: "Triceps" }
         ];
 
         const WEEKDAYS = [
@@ -905,7 +921,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const name = String(ex?.name || '').trim().replace(/\s+/g, ' ');
                 if (!name) return;
                 const key = name.toLowerCase();
-                if (!result.has(key)) result.set(key, { name: name, category: ex.category || 'Khác' });
+                if (!result.has(key)) result.set(key, { name: name, category: ex.category || 'Khác', ...(ex.bodyweight === true ? {bodyweight:true} : {}) });
             }));
             return Array.from(result.values());
         }
@@ -1063,12 +1079,55 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             };
         }
 
-        // e1RM = W × (1 + (R + RIR) / 30)  (Epley có cộng số rep còn dư). RIR trống = 0 (tập tới giới hạn)
+        // e1RM = trung bình Epley, Brzycki và Lander; rep hiệu dụng = Rep + RIR.
+        // Không tính khi rep hiệu dụng >=37 (Brzycki có mẫu số <=0).
+        function isBodyweightExercise(name) {
+            const key = capitalizeExerciseName(name);
+            return (window.appData.exerciseLibrary || []).some(e => capitalizeExerciseName(e.name) === key && e.bodyweight === true);
+        }
+        function exerciseSet1RM(member, name, date, weight, reps, rir) {
+            return calculate1RM(parseFloat(weight) || 0, reps, rir);
+        }
+        function get1RMFactor(reps, rir) {
+            const r = parseFloat(reps), rv = parseFloat(rir);
+            if (!Number.isFinite(r) || !(r > 0)) return 0;
+            const n = Math.max(1, r + (Number.isFinite(rv) ? Math.max(0, rv) : 0));
+            if (n >= 37) return 0;
+            if (n === 1) return 1;
+            const epley = 1 + n / 30;
+            const brzycki = 36 / (37 - n);
+            const lander = 100 / (101.3 - 2.67123 * n);
+            return (epley + brzycki + lander) / 3;
+        }
+
+        function estimate1RM(weight, reps, rir) {
+            const w = parseFloat(weight);
+            if (!Number.isFinite(w) || !(w > 0)) return 0;
+            const value = w * get1RMFactor(reps, rir);
+            return Number.isFinite(value) ? value : 0;
+        }
+
         function calculate1RM(weight, reps, rir) {
-            const w = parseFloat(weight), r = parseFloat(reps);
-            if (!(w > 0) || !(r > 0)) return 0;
-            const rv = parseFloat(rir);
-            return parseFloat((w * (1 + (r + (isNaN(rv) ? 0 : Math.max(0, rv))) / 30)).toFixed(1));
+            return parseFloat(estimate1RM(weight, reps, rir).toFixed(1));
+        }
+
+        function weightFor1RM(target, reps, rir) {
+            const factor = get1RMFactor(reps, rir);
+            return factor > 0 && Number.isFinite(target) && target > 0 ? target / factor : 0;
+        }
+
+        // Đảo hàm trung bình bằng tìm kiếm nhị phân trên rep hiệu dụng, chưa làm tròn e1RM.
+        function repsFor1RM(weight, target, rir) {
+            const w = parseFloat(weight), rv = parseFloat(rir);
+            if (!Number.isFinite(w) || !(w > 0) || !Number.isFinite(target) || !(target > 0)) return 0;
+            const reserve = Number.isFinite(rv) ? Math.max(0, rv) : 0;
+            let lo = 1, hi = 37 - 1e-6;
+            for (let i = 0; i < 40; i++) {
+                const mid = (lo + hi) / 2;
+                if (estimate1RM(w, mid, 0) < target) lo = mid;
+                else hi = mid;
+            }
+            return Math.round((lo + hi) / 2) - reserve;
         }
 
         // ========== SECTION 07: KHỞI TẠO APP + LƯU DỮ LIỆU + PWA ========== 
@@ -1277,6 +1336,17 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             persistData();
             renderTabs();
             renderContent();
+            if (tabId === 'track') {
+                requestAnimationFrame(() => {
+                    if (window.appData.activeTab !== 'track') return;
+                    const profile = document.getElementById('memberProfileHeader');
+                    if (!profile) return;
+                    const tabs = document.getElementById('tabsContainer');
+                    const header = document.querySelector('header');
+                    const offset = Math.max(tabs ? tabs.getBoundingClientRect().bottom : 0, header ? header.getBoundingClientRect().bottom : 0) + 12;
+                    window.scrollTo({ top: Math.max(0, window.scrollY + profile.getBoundingClientRect().top - offset), behavior: 'instant' });
+                });
+            }
         }
 
         function selectTrackMember(memberId) {
@@ -1309,7 +1379,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             if (!activeTrackMemberId || !members.some(m => m.id === activeTrackMemberId)) activeTrackMemberId = members[0].id;
             const member = members.find(m => m.id === activeTrackMemberId);
             const color = MEMBER_COLORS[member.colorIndex % MEMBER_COLORS.length].solid;
-            const selector = `<div class="bg-cardbg border border-cardborder rounded-2xl p-3 sm:p-4 mb-4 shadow-lg flex flex-wrap items-center gap-3"><div class="w-10 h-10 rounded-xl flex items-center justify-center bg-cyan-500/10 border border-cyan-500/30 text-cyan-300"><i class="fa-solid fa-users text-lg"></i></div><div class="flex-1 min-w-[130px]"><div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Track tạ của thành viên</div><div class="text-xs text-slate-400">Chọn người để xem hoặc nhập nhật ký</div></div><div class="flex items-center gap-2 w-full sm:w-auto"><div class="relative flex-1 sm:w-64"><select aria-label="Chọn thành viên track tạ" onchange="selectTrackMember(this.value)" class="w-full appearance-none bg-slate-900 border border-cyan-500/40 hover:border-cyan-400 focus:border-cyan-300 rounded-xl pl-3 pr-10 py-3 text-sm font-bold text-white outline-none shadow-inner">${members.map(m => `<option value="${m.id}" ${m.id === member.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select><i class="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400 text-xs"></i></div><button type="button" title="Đổi tên thành viên" aria-label="Đổi tên thành viên" onclick="openEditMemberModal('${member.id}')" class="shrink-0 w-11 h-11 flex items-center justify-center bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 rounded-xl transition"><i class="fa-solid fa-user-pen text-sm"></i></button><button type="button" title="Xóa thành viên" aria-label="Xóa thành viên" onclick="deleteMember('${member.id}')" class="shrink-0 w-11 h-11 flex items-center justify-center bg-rose-950/80 border border-rose-800/60 hover:bg-rose-900 text-rose-400 rounded-xl transition"><i class="fa-solid fa-trash-can text-sm"></i></button></div><div class="w-2 h-2 rounded-full" style="background:${color}"></div></div>`;
+            const selector = `<div class="bg-cardbg border border-cardborder rounded-xl p-2 sm:p-2.5 mb-3 shadow-lg flex flex-wrap items-center gap-2"><div class="w-7 h-7 rounded-lg flex items-center justify-center bg-cyan-500/10 border border-cyan-500/30 text-cyan-300"><i class="fa-solid fa-users text-sm"></i></div><div class="flex-1 min-w-[130px]"><div class="text-[11px] uppercase tracking-wide text-slate-500 font-bold mb-0.5">Track tạ của thành viên</div><div class="text-xs text-slate-400">Chọn người để xem hoặc nhập nhật ký</div></div><div class="flex items-center gap-2 w-full sm:w-auto"><div class="relative flex-1 sm:w-64"><select style="color: ${color}; border-color: ${color};" aria-label="Chọn thành viên track tạ" onchange="selectTrackMember(this.value)" class="w-full appearance-none bg-slate-900 border border-cyan-500/40 hover:border-cyan-400 focus:border-cyan-300 rounded-xl pl-2.5 pr-7 py-1.5 text-sm font-bold text-white outline-none shadow-inner">${members.map(m => `<option value="${m.id}" ${m.id === member.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select><i style="color: ${color};" class="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400 text-xs"></i></div><button type="button" title="Đổi tên thành viên" aria-label="Đổi tên thành viên" onclick="openEditMemberModal('${member.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 rounded-lg transition"><i class="fa-solid fa-user-pen text-sm"></i></button><button type="button" title="Xóa thành viên" aria-label="Xóa thành viên" onclick="deleteMember('${member.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center bg-rose-950/80 border border-rose-800/60 hover:bg-rose-900 text-rose-400 rounded-lg transition"><i class="fa-solid fa-trash-can text-sm"></i></button></div></div>`;
             container.innerHTML = selector + '<div id="trackMemberContent"></div>';
             renderMemberTab(document.getElementById('trackMemberContent'), member);
         };
@@ -1345,7 +1415,6 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
             container.innerHTML = `
                 <div class="space-y-5">
-                    ${renderTrendOverviewCard()}
                     <div class="bg-cardbg border border-cardborder rounded-2xl p-4 flex flex-wrap justify-between items-center gap-3 shadow-xl">
                         <div>
                             <h2 class="text-base font-bold text-white flex items-center gap-2">
@@ -1375,7 +1444,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                                 <h3 class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
                                     <i class="fa-solid fa-chart-line text-emerald-400"></i> Tiến Trình 1RM (kg) - <span id="overviewExTitle">${overviewSelectedExercise}</span>
                                 </h3>
-                                <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono">1RM Epley</span>
+                                <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono" title="Trung bình Epley, Brzycki và Lander">e1RM TB</span>
                             </div>
                             <div class="chart-container">
                                 <canvas id="chart1RM"></canvas>
@@ -1438,7 +1507,6 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                             <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-sky-500 inline-block"></span>Cutting</span>
                             <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-violet-500 inline-block"></span>Maingain</span>
                             <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-emerald-500 inline-block"></span>Chưa đặt chế độ</span>
-                            <span class="text-slate-500">Ô mờ = ngày chưa tới trong giai đoạn đó</span>
                         </div>
 
                         <!-- Chú thích Legend -->
@@ -1532,9 +1600,6 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 item.sessionCount = sessionCount;
                 item.activeMemberNames = activeMemberNames;
                 item.activePhases = activePhases;
-                // ngày nghỉ: chỉ tô nền chế độ khi tất cả thành viên đang xem cùng một chế độ
-                const dayPhases = targetMembers.map(m => getMemberPhaseOn(m, item.isoDate));
-                item.restPhase = (!isAll && dayPhases.length && dayPhases[0] && dayPhases.every(x => x === dayPhases[0])) ? dayPhases[0] : null;
 
                 if (sessionCount > 0) {
                     activeDatesSet.add(item.isoDate);
@@ -1551,7 +1616,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             for (let i = 0; i < leadBlank; i++) html += `<div></div>`;
 
             // Mỗi chế độ một tông màu: Bulking cam, Cutting xanh trời, Maingain tím; chưa đặt chế độ giữ nguyên xanh lá.
-            // Ngày nghỉ trong giai đoạn được tô nền mờ cùng tông để nhìn ra độ dài của từng giai đoạn.
+            // Ngày chưa có buổi tập giữ màu trung tính, không dự đoán giai đoạn tương lai.
             const HEAT = {
                 none:     { l1: 'bg-emerald-600/80 border border-emerald-500/50 shadow-sm shadow-emerald-500/20', l2: 'bg-emerald-500 border border-emerald-400 shadow-sm shadow-emerald-400/30', l3: 'bg-emerald-400 border border-emerald-300 shadow-md shadow-emerald-400/50', rest: null },
                 bulk:     { l1: 'bg-orange-600/80 border border-orange-500/50 shadow-sm shadow-orange-500/20', l2: 'bg-orange-500 border border-orange-400 shadow-sm shadow-orange-400/30', l3: 'bg-orange-400 border border-orange-300 shadow-md shadow-orange-400/50', rest: 'bg-orange-950/50 border border-orange-900/50' },
@@ -1582,9 +1647,6 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         colorClass = heat.l2.replace('shadow-sm', 'shadow-md');
                         titleText = `${item.isoDate}: Đã đi tập${phaseTxt}`;
                     }
-                } else if (item.restPhase && item.isoDate >= todayIso) {   // chỉ ngày chưa tới mới tô mờ theo giai đoạn; ngày đã qua giữ màu trung tính
-                    colorClass = HEAT[item.restPhase].rest;
-                    titleText = `${item.isoDate}: Chưa tập · ${TRAIN_PHASES[item.restPhase].label}`;
                 }
 
                 html += `
@@ -1650,7 +1712,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 dropdown.innerHTML = '<div class="px-3 py-2 text-xs text-slate-500">Không tìm thấy bài tập</div>';
             } else {
                 dropdown.innerHTML = overviewExerciseFiltered.map((n, i) => `
-                    <div onmousedown="event.preventDefault()" onclick="pickOverviewExercise(${i})" class="px-3 py-2 hover:bg-slate-800 text-xs font-bold cursor-pointer border-b border-slate-800/40 last:border-0 ${n === overviewSelectedExercise ? 'text-emerald-300' : 'text-slate-200'}">${escapeTextValue(n)}</div>
+                    <div onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="pickOverviewExercise(${i})" class="px-3 py-2 hover:bg-slate-800 text-xs font-bold cursor-pointer border-b border-slate-800/40 last:border-0 ${n === overviewSelectedExercise ? 'text-emerald-300' : 'text-slate-200'}">${escapeTextValue(n)}</div>
                 `).join('');
             }
             dropdown.classList.remove('hidden');
@@ -1741,7 +1803,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                             dayLog.exercises.forEach(ex => {
                                 if (capitalizeExerciseName(ex.name) === exerciseName && ex.sets) {
                                     ex.sets.forEach(s => {
-                                        const rm = calculate1RM(s.weight, s.reps, s.rir);
+                                        const rm = exerciseSet1RM(member, ex.name, dateStr, s.weight, s.reps, s.rir);
                                         if (rm > max1RM) max1RM = rm;
                                     });
                                 }
@@ -1766,30 +1828,33 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 datasets1RM.push({
                     label: member.name,
                     data: data1RM,
+                    pointRadius: 0,
                     borderColor: colorObj.border,
                     backgroundColor: colorObj.bg,
-                    borderWidth: 2.5,
-                    tension: 0.2,
+                    borderWidth: 3,
+                    tension: 0,
                     spanGaps: true
                 });
 
                 datasetsRelative.push({
                     label: member.name,
                     data: dataRelative,
+                    pointRadius: 0,
                     borderColor: colorObj.border,
                     backgroundColor: colorObj.bg,
-                    borderWidth: 2.5,
-                    tension: 0.2,
+                    borderWidth: 3,
+                    tension: 0,
                     spanGaps: true
                 });
 
                 datasetsWeight.push({
                     label: member.name,
                     data: dataWeight,
+                    pointRadius: 0,
                     borderColor: colorObj.border,
                     backgroundColor: colorObj.bg,
-                    borderWidth: 2,
-                    tension: 0.2,
+                    borderWidth: 2.5,
+                    tension: 0,
                     spanGaps: true
                 });
             });
@@ -1802,13 +1867,29 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const commonOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: sortedDates.length > 120 ? false : { duration: 200 },
+                interaction: { mode: 'index', intersect: false, axis: 'x' },
+                elements: { point: { radius: 0, hoverRadius: 0, hitRadius: 12 } },
                 plugins: {
                     legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
-                    tooltip: { mode: 'index', intersect: false }
+                    tooltip: {
+                        mode: 'index', intersect: false,
+                        callbacks: {
+                            title: items => {
+                                if (!items.length) return '';
+                                const date = sortedDates[items[0].dataIndex];
+                                return date ? date.split('-').reverse().join('/') : '';
+                            }
+                        }
+                    }
                 },
                 scales: {
-                    x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#334155' } },
-                    y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#334155' } }
+                    x: {
+                        ticks: { color: '#64748b', font: { size: 10 }, autoSkip: true,
+                            maxTicksLimit: 8, maxRotation: 0, minRotation: 0, autoSkipPadding: 16, padding: 8 },
+                        grid: { color: 'rgba(148, 163, 184, 0.14)', drawOnChartArea: true, lineWidth: 1 }
+                    },
+                    y: { ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 6, padding: 6 }, grid: { color: 'rgba(148, 163, 184, 0.14)', drawOnChartArea: true, lineWidth: 1 } }
                 }
             };
 
@@ -1891,7 +1972,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const phaseTip = curPhase ? `Chế độ ${TRAIN_PHASES[curPhase].label} ${phaseSince} · bấm lại để bỏ` : 'Chưa đặt chế độ · áp dụng từ ngày đang xem trở đi';
             const phaseBtn = (key) => {
                 const def = TRAIN_PHASES[key];
-                return `<button type="button" onclick="setMemberPhase('${member.id}', '${key}')" title="${phaseTip}" class="px-2 py-1 rounded-lg text-[11px] font-bold border transition ${curPhase === key ? def.on : def.off}"><i class="fa-solid ${def.icon} mr-1"></i>${def.label}</button>`;
+                return `<button type="button" onclick="setMemberPhase('${member.id}', '${key}')" title="${phaseTip}" class="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md sm:rounded-lg text-[10px] sm:text-[11px] font-bold border transition ${curPhase === key ? def.on : def.off}"><i class="fa-solid ${def.icon} mr-0.5 sm:mr-1"></i>${def.label}</button>`;
             };
             const phaseGroupHtml = `
                             <div class="flex items-center gap-1">
@@ -1901,31 +1982,31 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             container.innerHTML = `
                 <div class="space-y-5">
                     <!-- Top Bar Thành Viên -->
-                    <div class="bg-cardbg border border-cardborder rounded-2xl p-4 flex flex-wrap justify-between items-center gap-3 shadow-xl">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-slate-950 text-base shadow" style="background-color: ${colorObj.solid}">
+                    <div id="memberProfileHeader" class="bg-cardbg border border-cardborder rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 sm:gap-3 shadow-xl">
+                        <div class="flex items-center gap-2 sm:gap-3">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center font-bold text-slate-950 text-sm sm:text-base shadow" style="background-color: ${colorObj.solid}">
                                 ${member.name.charAt(0)}
                             </div>
                             <div>
-                                <h2 class="text-base font-bold text-white flex items-center gap-2">
+                                <h2 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
                                     ${member.name}
                                 </h2>
-                                <p class="text-xs text-slate-400">Nhật ký tập luyện cá nhân</p>
+                                <p class="text-[10px] sm:text-xs text-slate-400">Nhật ký tập luyện cá nhân</p>
                             </div>
                         </div>
 
-                        <div class="flex items-center gap-3 flex-wrap">
-                            <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl">
-                                <i class="fa-solid fa-weight-scale text-amber-400 text-xs"></i>
-                                <span class="text-xs font-medium text-slate-300">Cân nặng:</span>
-                                <input type="number" step="0.1" value="${currentLog.bodyWeight || (bwCarry ? bwCarry.value : '')}" placeholder="70" title="${bwCarryTip}" onchange="updateMemberBodyWeight('${member.id}', this.value)" class="w-16 bg-transparent text-xs font-bold ${bwInherited ? 'text-amber-300/80' : 'text-amber-300'} placeholder:text-amber-300/60 focus:outline-none text-right">
-                                <span class="text-xs text-slate-400">kg</span>
+                        <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+                            <div class="flex items-center gap-1 sm:gap-1.5 bg-slate-900 border border-slate-700 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl">
+                                <i class="fa-solid fa-weight-scale text-amber-400 text-[11px] sm:text-xs"></i>
+                                <span class="text-[11px] sm:text-xs font-medium text-slate-300">Cân nặng:</span>
+                                <input type="number" step="0.1" value="${currentLog.bodyWeight || (bwCarry ? bwCarry.value : '')}" placeholder="70" title="${bwCarryTip}" onchange="updateMemberBodyWeight('${member.id}', this.value)" class="w-12 sm:w-16 bg-transparent text-[11px] sm:text-xs font-bold ${bwInherited ? 'text-amber-300/80' : 'text-amber-300'} placeholder:text-amber-300/60 focus:outline-none text-right">
+                                <span class="text-[11px] sm:text-xs text-slate-400">kg</span>
                                 ${bwInherited ? `<span class="text-[10px] text-slate-500" title="${bwCarryTip}">giữ từ ${loadFmtDate(bwCarry.date)}</span>` : ''}
                             </div>
 ${phaseGroupHtml}
-                            <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl">
-                                <i class="fa-solid fa-calendar text-emerald-400 text-xs"></i>
-                                <input type="date" value="${dateStr}" onchange="changeMemberDate('${member.id}', this.value)" class="bg-transparent text-xs text-emerald-300 font-semibold focus:outline-none">
+                            <div class="flex items-center gap-1 sm:gap-1.5 bg-slate-900 border border-slate-700 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl">
+                                <i class="fa-solid fa-calendar text-emerald-400 text-[11px] sm:text-xs"></i>
+                                <input type="date" value="${dateStr}" onchange="changeMemberDate('${member.id}', this.value)" class="bg-transparent text-[11px] sm:text-xs text-emerald-300 font-semibold focus:outline-none">
                             </div>
                         </div>
                     </div>
@@ -1962,7 +2043,7 @@ ${phaseGroupHtml}
         // Mô phỏng cách PT nhảy tạ (double progression + e1RM):
         //  1. Mỗi người có "khung rep" riêng (suy ra từ thói quen tập nhiều buổi).
         //  2. Chưa chạm đỉnh khung rep -> GIỮ tạ, thêm rep.
-        //  3. Chạm đỉnh khung rep -> NHẢY tạ, rep tụt về đáy khung (tính bằng Epley, giữ e1RM không tụt).
+        //  3. Chạm đỉnh khung rep -> NHẢY tạ, rep tụt về đáy khung (tính bằng trung bình 3 công thức, giữ e1RM không tụt).
         //  4. Nhịp tăng 1RM nhiều tháng (Theil-Sen) quyết định bước nhảy lớn hay nhỏ.
         //  5. Bước tạ theo loại bài/thói quen đĩa của chính người tập; giảm tải khi tụt đỉnh, vào lại nhẹ khi nghỉ lâu.
         // =====================================================================
@@ -2030,7 +2111,7 @@ ${phaseGroupHtml}
                 ((member.logs[d] || {}).exercises || []).forEach(ex => {
                     if (capitalizeExerciseName(ex.name) !== name) return;
                     (ex.sets || []).forEach(st => {
-                        if (!(parseFloat(st.weight) > 0) || !(parseFloat(st.reps) > 0)) return;
+                        if ((!isBodyweightExercise(name) && !(parseFloat(st.weight) > 0)) || !(parseFloat(st.reps) > 0)) return;
                         if (st.rir === '' || st.rir === undefined || st.rir === null) return;
                         const v = parseFloat(st.rir);
                         if (!isNaN(v)) loggedRirs.push(v);
@@ -2045,22 +2126,24 @@ ${phaseGroupHtml}
                 ((member.logs[d] || {}).exercises || []).forEach(ex => {
                     if (capitalizeExerciseName(ex.name) !== name) return;
                     (ex.sets || []).forEach(st => {
-                        const w = parseFloat(st.weight);
+                        const w = isBodyweightExercise(name) ? (parseFloat(st.weight) || 0) : parseFloat(st.weight);
                         const r = parseFloat(st.reps);
-                        if (!(w > 0) || !(r > 0)) return;
+                        if (!(r > 0) || (isBodyweightExercise(name) ? w < 0 : !(w > 0))) return;
                         const rir = (st.rir === '' || st.rir === undefined || st.rir === null) ? null : parseFloat(st.rir);
                         const rirE = (rir === null || isNaN(rir)) ? defaultRir : rir;
-                        sets.push({ w: w, r: r, rir: isNaN(rir) ? null : rir, rirE: rirE, eff: w * (1 + (r + rirE) / 30) });
+                        const eff = estimate1RM(w, r, rirE);
+                        if (!(eff > 0) && !(isBodyweightExercise(name) && w === 0 && get1RMFactor(r, rirE) > 0)) return;
+                        sets.push({ w: w, r: r, rir: isNaN(rir) ? null : rir, rirE: rirE, eff: eff, load: w });
                     });
                 });
                 if (!sets.length) return;
                 const best = sets.reduce((a, b) => (b.eff > a.eff ? b : a));
-                const top = Math.max.apply(null, sets.map(s => s.w));
+                const top = Math.max.apply(null, sets.map(s => s.load));
                 sessions.push({
                     date: d, t: suggDayNum(d),
                     weight: best.w, reps: best.r, rir: best.rir, rirE: best.rirE, eff: best.eff,
-                    workReps: sets.filter(s => s.w >= top * 0.85).map(s => s.r),
-                    workRirs: sets.filter(s => s.w >= top * 0.85 && s.rir !== null).map(s => s.rir),
+                    workReps: sets.filter(s => s.load >= top * 0.85).map(s => s.r),
+                    workRirs: sets.filter(s => s.load >= top * 0.85 && s.rir !== null).map(s => s.rir),
                     nSets: sets.length,
                     weights: sets.map(s => s.w)
                 });
@@ -2127,19 +2210,220 @@ ${phaseGroupHtml}
             return { kg: slope * 30, pct: (slope * 30 / cur) * 100, cur: cur };
         }
 
-        function getWeightSuggestion(member, exName, dateStr, noCalib) {
+
+
+        // Chỉ học từ kết quả thực tế trước ngày đang xem; không truyền dự đoán qua bài thứ ba.
+        function transferSourceAt(sessions, t) {
+            const before = sessions.filter(s => s.t <= t).slice(-1)[0];
+            const after = sessions.find(s => s.t >= t);
+            if (before && before.t === t) return { eff: before.eff, t, interpolated: false };
+            if (before && after && after.t - before.t <= 21) {
+                const fraction = (t - before.t) / (after.t - before.t);
+                return { eff: before.eff + fraction * (after.eff - before.eff), t, interpolated: true };
+            }
+            return before && t - before.t <= 14 ? { eff: before.eff, t: before.t, interpolated: false } : null;
+        }
+
+        function transferPercentSamples(member, from, to, dateStr) {
+            const cutoff = suggDayNum(dateStr) - 180;
+            const source = suggGetSessions(member, from, dateStr).filter(s => s.t >= cutoff).slice(-40);
+            const target = suggGetSessions(member, to, dateStr).filter(s => s.t >= cutoff).slice(-40);
+            const samples = [];
+            for (let i = 1; i < target.length; i++) {
+                const a = target[i - 1], b = target[i], days = b.t - a.t;
+                if (days < 7 || days > 90) continue;
+                const x = transferSourceAt(source, a.t), y = transferSourceAt(source, b.t);
+                if (!x || !y || !(x.eff > 0) || !(a.eff > 0) || y.t <= x.t) continue;
+                const dx = y.eff / x.eff - 1, dy = b.eff / a.eff - 1;
+                // Tránh chia cho nhiễu gần 0; chỉ học các khoảng tăng thực tế, không đợt giảm tải.
+                if (dx < 0.02 || dx > 0.4 || dy < 0 || dy > 0.4) continue;
+                samples.push({ coefficient: Math.min(2, dy / dx), days, interpolated: x.interpolated || y.interpolated });
+            }
+            return samples;
+        }
+
+        function transferCoefficient(member, from, to, dateStr) {
+            const models = (window.appData.members || []).filter(m => !isDemoMember(m)).map(m => {
+                const samples = transferPercentSamples(m, from, to, dateStr);
+                return { id: m.id, samples, coefficient: suggMedian(samples.map(s => s.coefficient)) };
+            }).filter(m => m.samples.length >= 3 && m.samples.reduce((n,s) => n + s.days, 0) >= 28);
+            const own = models.find(m => m.id === member.id), others = models.filter(m => m.id !== member.id);
+            const group = others.length >= 2 ? suggMedian(others.map(m => m.coefficient)) : null;
+            const ownWeight = own ? Math.min(0.85, own.samples.length / (own.samples.length + 4)) : 0;
+            const groupWeight = group === null ? 0 : Math.min(0.7, others.length / (others.length + 4));
+            const groupPrior = group === null ? 1 : 1 + groupWeight * (group - 1);
+            return { coefficient: own ? groupPrior * (1 - ownWeight) + own.coefficient * ownWeight : groupPrior,
+                learned: !!own || group !== null, people: models.length,
+                samples: models.reduce((n,m) => n + m.samples.length, 0), ownSamples: own ? own.samples.length : 0 };
+        }
+
+        function transferFamily(name) {
+            const n = capitalizeExerciseName(name).toLowerCase();
+            if (/press|push.up|pushup/.test(n)) return 'press';
+            if (/fly|flye|pec deck/.test(n)) return 'fly';
+            if (/pulldown|pull.down|pull.up|pullup|chin.up|chinup/.test(n)) return 'vertical-pull';
+            if (/row/.test(n)) return 'row';
+            if (/curl/.test(n)) return 'curl';
+            if (/extension|pushdown|push.down|skull/.test(n)) return 'extension';
+            if (/squat|leg press/.test(n)) return 'squat';
+            return null;
+        }
+
+        function getStrengthTransfer(member, exName, dateStr) {
+            const to = capitalizeExerciseName(exName), category = transferCategory(to);
+            const explicit = capitalizeExerciseName((member.strengthTransfers || {})[to]);
+            if (!category) return null;
+            const targetSessions = suggGetSessions(member, to, dateStr);
+            const anchor = targetSessions.slice(-1)[0];
+            // Phương pháp phần trăm cần mốc tạ thật của chính bài đích.
+            if (!anchor) return explicit ? { from: explicit, unavailable: 'Cần buổi tập này làm mẫu để transfer sức mạnh' } : null;
+            if (!(anchor.eff > 0) || suggDayNum(dateStr) - anchor.t > 180) return null;
+            const family = transferFamily(to);
+            const candidates = explicit ? [explicit] : (window.appData.exerciseLibrary || []).map(e => capitalizeExerciseName(e.name))
+                .filter(n => n !== to && transferCategory(n) === category && family && transferFamily(n) === family);
+            const estimates = [];
+            for (const from of new Set(candidates)) {
+                if (from === to || transferCategory(from) !== category) continue;
+                const ss = suggGetSessions(member, from, dateStr);
+                const source = ss.slice(-1)[0];
+                if (!source || source.t <= anchor.t || suggDayNum(dateStr) - source.t > 45) continue;
+                let base = transferSourceAt(ss, anchor.t), partial = false;
+                if (!base) {
+                    // Chưa có nguồn ở ngày tập bài đích: chỉ đo đoạn đã quan sát được sau đó.
+                    const first = ss.find(s => s.t > anchor.t && s.t - anchor.t <= 14);
+                    if (!first) continue;
+                    base = { eff: first.eff, t: first.t }; partial = true;
+                }
+                if (!(base.eff > 0) || source.t <= base.t) continue;
+                const sourcePct = source.eff / base.eff - 1;
+                if (!Number.isFinite(sourcePct)) continue;
+                const model = transferCoefficient(member, from, to, dateStr);
+                const rawPct = sourcePct * model.coefficient;
+                const appliedPct = Math.min(0.15, Math.max(-0.1, rawPct));
+                estimates.push({ from, source, anchor, sourcePct, appliedPct, partial, ...model,
+                    predictedE: anchor.eff * (1 + appliedPct) });
+            }
+            // Một nguồn duy nhất; không cộng dồn tiến bộ các bài hoặc dùng dự đoán làm mẫu học.
+            estimates.sort((a,b) => b.source.t - a.source.t || b.ownSamples - a.ownSamples || b.samples - a.samples || a.from.localeCompare(b.from));
+            return estimates[0] || null;
+        }
+
+        function renderStrengthTransfer(member, exIndex, name, dateStr, transfer) {
+            if (!transfer) return '';
+            if (transfer.unavailable) return '<p class="text-[10px] text-slate-400">' + escapeTextValue(transfer.unavailable) + '</p>';
+            const tip = transfer.from + ' tăng ' + (transfer.sourcePct * 100).toFixed(1) + '% kể từ mốc bài đích. Hệ số ' + transfer.coefficient.toFixed(2) +
+                (transfer.learned ? ' học từ ' + transfer.samples + ' khoảng tiến bộ / ' + transfer.people + ' người.' : ' mặc định 1:1, chưa đủ dữ liệu để học.') +
+                (transfer.partial ? ' Chỉ đo phần thời gian có dữ liệu nguồn sau mốc bài đích.' : '') +
+                ' Dự đoán e1RM ' + transfer.predictedE.toFixed(1) + ' kg; giới hạn -10% đến +15% so với mốc thật. Các buổi lệch ngày được căn theo thời gian; hệ số là ước lượng.';
+            return '<p class="text-[10px] text-indigo-300" title="' + escapeAttrValue(tip) + '">Transfer tiến bộ · ×' + transfer.coefficient.toFixed(2) + (transfer.learned ? ' đã học' : ' mặc định') + '</p>';
+        }
+
+        const EXERCISE_CATEGORIES = {"Chest":"Ngực","Lats":"Xô","Traps":"Traps","Quads":"Đùi","Hamstrings":"Hamstring","Calves":"Calf","Glutes":"Mông","Shoulders":"Vai","Biceps":"Tay trước","Triceps":"Tay sau","Forearms":"Cẳng tay","Core":"Core","Cardio":"Cardio","Khác":"Khác / chưa phân loại"};
+        function resolvedExerciseCategory(item) {
+            const category = item && item.category;
+            if (Object.prototype.hasOwnProperty.call(EXERCISE_CATEGORIES, category)) return category;
+            const name = capitalizeExerciseName(item && item.name).toLowerCase();
+            if (category === 'Arms') {
+                if (/wrist|reverse curl|forearm|cẳng tay/.test(name)) return 'Forearms';
+                if (/tricep|pushdown|push.down|skull|tay sau/.test(name)) return 'Triceps';
+                if (/bicep|curl|tay trước/.test(name)) return 'Biceps';
+            }
+            if (category === 'Legs') {
+                if (/calf|calves|bắp chân/.test(name)) return 'Calves';
+                if (/hip thrust|glute|kickback|mông/.test(name)) return 'Glutes';
+                if (/romanian|rdl|leg curl|hamstring|đùi sau/.test(name)) return 'Hamstrings';
+                if (/squat|leg press|leg extension|quad|đùi trước/.test(name)) return 'Quads';
+            }
+            if (category === 'Back') {
+                if (/shrug|trap|row|face pull/.test(name)) return 'Traps';
+                if (/pulldown|pull.down|pullup|pull.up|chinup|chin.up|pullover|xô/.test(name)) return 'Lats';
+            }
+            return 'Khác';
+        }
+
+        function transferCategory(name) {
+            const key = capitalizeExerciseName(name);
+            const item = (window.appData.exerciseLibrary || []).find(e => capitalizeExerciseName(e.name) === key);
+            const category = resolvedExerciseCategory(item).toLowerCase();
+            return category && category !== 'khác' ? category : null;
+        }
+
+        function renderTransferPicker(member, exIndex, name) {
+            const log = member.logs[member.selectedDate || getTodayISODate()];
+            const ex = log && log.exercises[exIndex];
+            const linked = !!(ex && ex.transferFrom);
+            return '<details ' + (linked ? 'open ' : '') + 'data-transfer-picker class="relative min-w-0 shrink group open:flex open:items-center open:gap-1.5"><summary aria-label="Đổi bài và transfer sức mạnh" title="Đổi bài và transfer sức mạnh" class="flex h-7 w-7 items-center justify-center cursor-pointer list-none rounded-lg border border-slate-700 bg-slate-900 text-indigo-300 hover:border-indigo-400/60 hover:bg-indigo-950/50 hover:text-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 transition-colors [&::-webkit-details-marker]:hidden"><svg class="transfer-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></summary>' +
+                '<div class="relative min-w-0 w-32 sm:w-44 predictive-input-container"><input type="text" aria-label="Bài muốn đổi sang" placeholder="Đổi sang bài…" value="' + escapeAttrValue(linked ? name : '') + '" autocomplete="off" class="w-full min-w-0 bg-slate-900 border border-indigo-500/40 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400" onfocus="filterTransferOptions(this, \'' + member.id + '\', ' + exIndex + ')" oninput="filterTransferOptions(this, \'' + member.id + '\', ' + exIndex + ')" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); replaceExerciseWithTransfer(\'' + member.id + '\', ' + exIndex + ', this.value)}else if(event.key===\'Escape\'){this.nextElementSibling.classList.add(\'hidden\')}" >' +
+                '<div class="hidden absolute top-full right-0 mt-1 w-52 max-w-[75vw] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto" data-transfer-options></div></div></details>';
+        }
+
+        function filterTransferOptions(input, memberId, exIndex) {
+            hideAllPredictiveDropdowns();
+            const member = window.appData.members.find(m => m.id === memberId);
+            const log = member && member.logs[member.selectedDate || getTodayISODate()];
+            const ex = log && log.exercises[exIndex];
+            const category = ex && transferCategory(ex.name);
+            const dropdown = input.nextElementSibling;
+            const query = input.value.trim().toLowerCase();
+            const items = (window.appData.exerciseLibrary || []).filter(e => category && transferCategory(e.name) === category && capitalizeExerciseName(e.name) !== capitalizeExerciseName(ex.name) && e.name.toLowerCase().includes(query));
+            dropdown.innerHTML = items.length ? items.map(e => '<button type="button" class="w-full text-left px-3 py-2 hover:bg-slate-800 text-xs text-slate-200 border-b border-slate-800/40" onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="replaceExerciseWithTransfer(\'' + memberId + '\', ' + exIndex + ', decodeURIComponent(\'' + encodeURIComponent(e.name).replace(/'/g, '%27') + '\'))">' + escapeTextValue(e.name) + '<span class="block text-[10px] text-amber-400">' + escapeTextValue(EXERCISE_CATEGORIES[resolvedExerciseCategory(e)]) + '</span></button>').join('') : '<p class="px-3 py-2 text-[11px] text-slate-400">' + (category ? 'Không có bài cùng nhóm cơ phù hợp. Nhập tên rồi nhấn Enter để kiểm tra.' : 'Hãy phân loại bài hiện tại trong kho trước khi transfer.') + '</p>';
+            dropdown.classList.remove('hidden');
+        }
+
+        function replaceExerciseWithTransfer(memberId, exIndex, targetName) {
+            const member = window.appData.members.find(m => m.id === memberId);
+            const date = member && (member.selectedDate || getTodayISODate());
+            const log = member && member.logs[date];
+            const old = log && log.exercises[exIndex];
+            const to = capitalizeExerciseName(targetName), from = capitalizeExerciseName(old && (old.transferFrom || old.name));
+            if (!old || !from || !to || to === from) return;
+            const sourceCategory = transferCategory(from), targetCategory = transferCategory(to);
+            if (!sourceCategory || !targetCategory) {
+                showToast('Cần phân loại cả hai bài trong kho trước khi transfer', 'error'); return;
+            }
+            if (sourceCategory !== targetCategory) {
+                showToast('Hai bài khác nhóm cơ, không thể transfer', 'error'); return;
+            }
+            if (log.exercises.some((ex, i) => i !== exIndex && capitalizeExerciseName(ex.name) === to)) {
+                showToast('Bài này đã có trong buổi tập'); return;
+            }
+            if (!member.strengthTransfers) member.strengthTransfers = {};
+            member.strengthTransfers[to] = from;
+            const next = { name: to, transferFrom: from, sets: Array.from({length: Math.max(1, (old.sets || []).length)}, () => ({weight: '', reps: '', rir: 0})) };
+            // Giữ nguyên kết quả đã nhập, chỉ thay trực tiếp một bài còn trống.
+            const hasData = (old.sets || []).some(s => parseFloat(s.weight) > 0 || parseFloat(s.reps) > 0);
+            if (hasData) log.exercises.splice(exIndex + 1, 0, next);
+            else log.exercises.splice(exIndex, 1, next);
+            persistData();
+            renderContent();
+        }
+
+        function getWeightSuggestion(member, exName, dateStr, noCalib, transfer) {
             const name = capitalizeExerciseName(exName);
             if (!name) return null;
             const sessions = suggGetSessions(member, name, dateStr);
             if (!sessions.length) return null;
 
+            const bodyweight = isBodyweightExercise(name);
             const n = sessions.length;
             const last = sessions[n - 1];
             const prev = n >= 2 ? sessions[n - 2] : null;
+            if (bodyweight && last.weight === 0) {
+                const prior = SUGG_REP_PRIOR[suggRepClass(name)];
+                const rir = sessions.hasRir ? Math.max(1, Math.min(4, last.rirE)) : 0;
+                const jump = last.reps + last.rirE >= prior.hi;
+                const weight = jump ? 2.5 : 0, reps = jump ? prior.lo : Math.min(prior.hi, last.reps + 1);
+                const reason = jump ? 'Đã chạm đỉnh khung rep ở 0 kg tạ thêm → thử thêm 2,5 kg.' : 'Giữ 0 kg tạ thêm, tăng rep trước khi thêm tạ.';
+                return {weight, reps, rir, mode:jump?'jump':'build', shortReason:reason, declining:false,
+                    tag:{text:'Tăng tiến',cls:'bg-emerald-950 text-emerald-300 border-emerald-700/60'},reason,alt:null,
+                    last,sessions:n,lo:prior.lo,hi:prior.hi,P:last.reps,repSrc:'khung rep khi chưa thêm tạ',step:2.5,
+                    rateTxt:'chưa có mốc e1RM tạ thêm dương',speedTxt:'theo dõi rep',bwKg:null,phase:getMemberPhaseOn(member,dateStr),
+                    calib:1,calibN:0,predE:estimate1RM(weight,reps,rir),span:n>=2?last.t-sessions[0].t:0};
+            }
             const allWeights = [];
             sessions.forEach(s => s.weights.forEach(w => allWeights.push(w)));
-            const step = suggInferStep(name, allWeights);
-            const roundTo = (x) => Math.max(step, parseFloat((Math.round(x / step) * step).toFixed(2)));
+            const step = bodyweight ? 2.5 : suggInferStep(name, allWeights);
+            const roundTo = (x) => Math.max(bodyweight ? 0 : step, parseFloat((Math.round(x / step) * step).toFixed(2)));
             const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
             const gapDays = Math.max(0, suggDayNum(dateStr) - last.t);
 
@@ -2178,7 +2462,7 @@ ${phaseGroupHtml}
 
             // --- Nhịp tăng nhiều tháng ---
             const eLast = last.eff;
-            const rate = suggProgressRate(sessions);               // kg 1RM / tháng
+            const rate = suggProgressRate(sessions);               // kg e1RM / tháng
             const ratePct = rate === null ? null : (rate / eLast) * 100;
             let speed = 'unknown', speedTxt = 'chưa đủ dữ liệu nhiều tháng';
             if (ratePct !== null) {
@@ -2221,7 +2505,7 @@ ${phaseGroupHtml}
                 const ratios = [];
                 for (let i = Math.max(2, n - 6); i < n; i++) {
                     const bs = getWeightSuggestion(member, exName, sessions[i].date, true);
-                    if (!bs || (bs.mode !== 'build' && bs.mode !== 'jump')) continue;
+                    if (!bs || !(bs.predE > 0) || (bs.mode !== 'build' && bs.mode !== 'jump')) continue;
                     ratios.push(sessions[i].eff / bs.predE);
                 }
                 if (ratios.length >= 3) {
@@ -2229,7 +2513,9 @@ ${phaseGroupHtml}
                     calibN = ratios.length;
                 }
             }
-            const eT = (eLast + gKg) * calib;
+            const localET = (eLast + gKg) * calib;
+            const useTransfer = !noCalib && transfer && !transfer.unavailable && Number.isFinite(transfer.predictedE);
+            const eT = useTransfer ? transfer.predictedE : localET;
 
             // --- Trạng thái: đỉnh, đi ngang, tụt ---
             const recent = sessions.slice(-8);
@@ -2246,20 +2532,20 @@ ${phaseGroupHtml}
             sessions.slice(-4).forEach(s => (s.workRirs || []).forEach(v => rirPool.push(v)));
             let tRIR = sessions.hasRir ? Math.max(1, clamp(Math.round(suggMedian(rirPool) || 0), 0, 4)) : 0;
             const capReps = last.reps + last.rirE;
-            const repsAt = (W, E) => Math.round(30 * (E / W - 1)) - tRIR;
+            const repsAt = (W, E) => repsFor1RM(W, E, tRIR);
 
             let mode, W, R, reason, alt = null;
 
             if (declining) {
                 mode = 'reduce';
-                W = roundTo(0.9 * peakE / (1 + (P + tRIR) / 30));
+                W = roundTo(weightFor1RM(0.9 * peakE, P, tRIR));
                 R = clamp(P, lo, hi);
                 const dropPct = ((1 - last.eff / peakE) * 100).toFixed(0);
                 reason = `Sức mạnh ước tính tụt ${dropPct}% so với đỉnh suốt ${sinceBest} buổi → giảm tải ~10% một buổi rồi tăng lại từ từ.`;
             } else if (gapDays > 14) {
                 mode = 'return';
                 const cut = Math.min(0.10, (gapDays - 10) * 0.005);
-                W = roundTo(eLast * (1 - cut) / (1 + (P + tRIR) / 30));
+                W = roundTo(weightFor1RM(eLast * (1 - cut), P, tRIR));
                 R = clamp(P, lo, hi);
                 reason = `Nghỉ ${gapDays} ngày → vào lại nhẹ hơn ~${(cut * 100).toFixed(0)}%, làm quen lại rồi mới tăng tiếp.`;
             } else if (capReps >= hi) {
@@ -2268,8 +2554,8 @@ ${phaseGroupHtml}
                 // Người tăng càng nhanh -> rep hạ càng sâu (bước nhảy càng lớn); tăng chậm -> nhảy nhỏ, rep chỉ hạ nhẹ
                 const frac = (speed === 'fast') ? 0 : ((speed === 'mid' || speed === 'unknown') ? 0.33 : 0.6);
                 const t = clamp(Math.round(lo + (hi - lo) * frac), lo, Math.max(lo, hi - 1));
-                const maxW = Math.max(last.weight + step, last.weight * 1.15);   // không nhảy quá ~15% một lần
-                W = roundTo(eT / (1 + (t + tRIR) / 30));
+                const maxW = bodyweight ? last.weight + 5 : Math.max(last.weight + step, last.weight * 1.15);   // không nhảy quá ~15% một lần
+                W = roundTo(weightFor1RM(eT, t, tRIR));
                 if (W < last.weight + step - 1e-9) W = roundTo(last.weight + step);
                 if (W > maxW) W = roundTo(Math.max(last.weight + step, Math.floor(maxW / step) * step));
                 R = repsAt(W, eT);
@@ -2305,6 +2591,7 @@ ${phaseGroupHtml}
                 else if (cutting) reason += bwKg ? ` Đang giảm cân (${bwKg}): giữ được tạ là tốt, không ép nhảy.` : ' Đang cutting: giữ được tạ là tốt, không ép nhảy.';
             }
 
+            if (useTransfer && (mode === 'jump' || mode === 'build')) reason += ' Tham khảo tiến bộ ' + transfer.from + ' × hệ số ' + transfer.coefficient.toFixed(2) + '.';
             const calibPct = (calib - 1) * 100;
             if ((mode === 'jump' || mode === 'build') && calibN >= 3 && Math.abs(calibPct) >= 1) {
                 reason += ` Tự hiệu chỉnh ${calibPct > 0 ? '+' : ''}${calibPct.toFixed(1)}% theo ${calibN} buổi gần nhất (bạn ${calibPct > 0 ? 'thường vượt' : 'thường thấp hơn'} gợi ý).`;
@@ -2327,7 +2614,7 @@ ${phaseGroupHtml}
             return {
                 weight: W, reps: R, rir: tRIR, mode: mode, shortReason: shortReason, declining: declining, tag: tags[mode], reason: reason, alt: alt,
                 last: last, sessions: n, lo: lo, hi: hi, P: P, repSrc: repSrc, step: step,
-                rateTxt: rateTxt, speedTxt: speedTxt, bwKg: bwKg, phase: phase, calib: calib, calibN: calibN, predE: W * (1 + (R + tRIR) / 30), span: n >= 2 ? (last.t - sessions[0].t) : 0
+                rateTxt: rateTxt, speedTxt: speedTxt, bwKg: bwKg, phase: phase, calib: calib, calibN: calibN, predE: estimate1RM(W, R, tRIR), span: n >= 2 ? (last.t - sessions[0].t) : 0
             };
         }
 
@@ -2441,7 +2728,8 @@ ${phaseGroupHtml}
         // Giữ khung bài 120ms để nhấc lên; chỉ lưu thứ tự khi thả tay.
         function startExerciseReorder(event, memberId, index) {
             if (!event.isPrimary || event.button !== 0) return;
-            if (event.target.closest('input, textarea, select, button, a, label, summary, [contenteditable]')) return;
+            const fromHandle = !!event.target.closest('[data-track-drag-handle]');
+            if (!fromHandle) return;
             event.preventDefault();
             document.activeElement?.blur();
             const member = (window.appData.members || []).find(m => m.id === memberId);
@@ -2452,7 +2740,7 @@ ${phaseGroupHtml}
             if (!exercises || !card) return;
             const expectedOrder = exercises.slice();
             startListReorder(event, container, card,
-                to => moveLogExercise(memberId, dateStr, index, to, expectedOrder), renderContent);
+                to => moveLogExercise(memberId, dateStr, index, to, expectedOrder), renderContent, fromHandle);
         }
 
         // Dùng chung hiệu ứng nhấc/kéo/thả cho nhật ký và cài đặt routine.
@@ -2572,7 +2860,8 @@ ${phaseGroupHtml}
                 paint();
                 frame = requestAnimationFrame(tick);
             }
-            const holdTimer = setTimeout(lift, fromHandle ? 80 : 120);
+            const holdTimer = fromHandle ? null : setTimeout(lift, 120);
+            if (fromHandle) lift();
             document.addEventListener('pointermove', move, { passive: false });
             document.addEventListener('touchmove', touchMove, { passive: false });
             document.addEventListener('pointerup', finish);
@@ -2586,17 +2875,17 @@ ${phaseGroupHtml}
             const parts = sug.last.date.split('-');
             const dd = parts.length === 3 ? `${parts[2]}/${parts[1]}` : sug.last.date;
             const rirTxt = sug.last.rir !== null ? ` RIR ${sug.last.rir}` : '';
-            const tip = `${sug.reason} · e1RM = Tạ×(1+(Rep+RIR)/30), nhắm RIR ${sug.rir}. Dựa trên ${sug.sessions} buổi (${sug.span} ngày). Buổi ${dd}: ${sug.last.weight}kg x ${sug.last.reps}${rirTxt}. Khung rep ${sug.lo}-${sug.hi} (${sug.repSrc}; thường ~${sug.P} rep). Bước tạ ${sug.step}kg. Nhịp tăng: ${sug.rateTxt}, ${sug.speedTxt}.${sug.phase ? ' Chế độ: ' + ({ bulk: 'Bulking', cut: 'Cutting', maintain: 'Maingain' })[sug.phase] + '.' : ''}${sug.bwKg ? ' Cân nặng: ' + sug.bwKg + '.' : ''}${sug.calibN >= 3 ? ' Hiệu chỉnh theo thực tế: ' + ((sug.calib - 1) * 100).toFixed(1) + '%.' : ''}`;
-            const altBtn = sug.alt ? `<button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.alt.weight}, ${sug.alt.reps}, ${sug.rir})" title="${sug.alt.label} (RIR ${sug.rir})" class="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-md text-[11px] font-semibold">${sug.alt.weight}×${sug.alt.reps}</button>` : '';
+            const tip = `${sug.reason} · e1RM = TB(Epley, Brzycki, Lander) với Rep + RIR < 37; nhắm RIR ${sug.rir}. Dựa trên ${sug.sessions} buổi (${sug.span} ngày). Buổi ${dd}: ${sug.last.weight}kg x ${sug.last.reps}${rirTxt}. Khung rep ${sug.lo}-${sug.hi} (${sug.repSrc}; thường ~${sug.P} rep). Bước tạ ${sug.step}kg. Nhịp tăng: ${sug.rateTxt}, ${sug.speedTxt}.${sug.phase ? ' Chế độ: ' + ({ bulk: 'Bulking', cut: 'Cutting', maintain: 'Maingain' })[sug.phase] + '.' : ''}${sug.bwKg ? ' Cân nặng: ' + sug.bwKg + '.' : ''}${sug.calibN >= 3 ? ' Hiệu chỉnh theo thực tế: ' + ((sug.calib - 1) * 100).toFixed(1) + '%.' : ''}`;
+            const altBtn = sug.alt ? `<button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.alt.weight}, ${sug.alt.reps}, ${sug.rir})" title="${sug.alt.label} (RIR ${sug.rir})" class="px-1.5 sm:px-2 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-md text-[10px] sm:text-[11px] font-semibold">${sug.alt.weight}×${sug.alt.reps}</button>` : '';
             return `
-                        <div title="${tip}" class="bg-indigo-950/40 border border-indigo-500/30 rounded-lg px-2 py-1.5 flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
-                            <div class="grid items-center gap-x-2 gap-y-1 text-[11px] tabular-nums" style="grid-template-columns: auto max-content max-content max-content max-content;">
-                                <span class="text-indigo-200 inline-flex items-center gap-1"><i class="fa-solid fa-wand-magic-sparkles text-amber-400 w-3 text-center shrink-0" aria-hidden="true"></i><span>Gợi ý:</span></span>
+                        <div title="${escapeAttrValue(tip)}" class="bg-indigo-950/40 border border-indigo-500/30 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 flex flex-wrap items-start justify-between gap-x-1.5 sm:gap-x-3 gap-y-1 sm:gap-y-1.5">
+                            <div class="grid items-center gap-x-1 sm:gap-x-2 gap-y-0.5 sm:gap-y-1 text-[10px] sm:text-[11px] tabular-nums" style="grid-template-columns: auto max-content max-content max-content max-content;">
+                                <span class="text-indigo-200 inline-flex items-center gap-0.5 sm:gap-1"><i class="fa-solid fa-wand-magic-sparkles text-amber-400 w-2.5 sm:w-3 text-center shrink-0" aria-hidden="true"></i><span>Gợi ý:</span></span>
                                 <strong class="text-white text-center">${sug.weight} kg</strong>
                                 <strong class="text-white text-right">× ${sug.reps}</strong>
                                 <span class="text-emerald-300 font-semibold" title="Số rep còn dư nên chừa lại">· RIR ${sug.rir}</span>
-                                <span class="px-1.5 py-px rounded-full border text-[9px] font-semibold whitespace-nowrap ${sug.tag.cls}">${sug.tag.text}</span>
-                                <span class="text-slate-400 inline-flex items-center gap-1"><i class="fa-regular fa-calendar w-3 text-center shrink-0" aria-hidden="true"></i><span>${dd}:</span></span>
+                                <span class="px-1 sm:px-1.5 py-px rounded-full border text-[8px] sm:text-[9px] font-semibold whitespace-nowrap ${sug.tag.cls}">${sug.tag.text}</span>
+                                <span class="text-slate-400 inline-flex items-center gap-0.5 sm:gap-1"><i class="fa-regular fa-calendar w-2.5 sm:w-3 text-center shrink-0" aria-hidden="true"></i><span>${dd}:</span></span>
                                 <span class="text-slate-400 text-center">${sug.last.weight} kg</span>
                                 <span class="text-slate-400 text-right">× ${sug.last.reps}</span>
                                 <span class="text-slate-400">${sug.last.rir !== null && sug.last.rir !== undefined ? `· RIR ${sug.last.rir}` : ''}</span>
@@ -2604,7 +2893,7 @@ ${phaseGroupHtml}
                             </div>
                             <div class="shrink-0 flex flex-wrap items-center gap-1">
                                 ${altBtn}
-                                <button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.weight}, ${sug.reps}, ${sug.rir})" class="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[11px] font-semibold">Điền</button>
+                                <button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.weight}, ${sug.reps}, ${sug.rir})" class="px-1.5 sm:px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] sm:text-[11px] font-semibold">Điền</button>
                             </div>
                         </div>`;
         }
@@ -2658,26 +2947,33 @@ ${phaseGroupHtml}
 
             const suggestDate = member.selectedDate || getTodayISODate();
             return currentLog.exercises.map((ex, exIndex) => {
-                const sug = getWeightSuggestion(member, ex.name, suggestDate);
-                const sugHtml = sug ? renderSuggestionRow(member, exIndex, sug) : '';
+                const transfer = getStrengthTransfer(member, ex.name, suggestDate);
+                const sug = getWeightSuggestion(member, ex.name, suggestDate, false, transfer);
+                const sugHtml = (sug ? renderSuggestionRow(member, exIndex, sug) : '') + renderStrengthTransfer(member, exIndex, ex.name, suggestDate, transfer);
                 return `
-                    <div data-exercise-index="${exIndex}" onpointerdown="startExerciseReorder(event, '${member.id}', ${exIndex})" style="touch-action: pan-y;" class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative cursor-grab active:cursor-grabbing">
+                    <div data-exercise-index="${exIndex}" class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
                         <div class="flex justify-between items-center gap-2 border-b border-slate-700 pb-2">
-                            <div class="flex-1 relative predictive-input-container">
+                            <button type="button" data-track-drag-handle title="Kéo để đổi thứ tự bài tập" aria-label="Kéo bài tập ${exIndex + 1}" onpointerdown="event.stopPropagation(); startExerciseReorder(event, '${member.id}', ${exIndex})" oncontextmenu="event.preventDefault()" style="touch-action: none; -webkit-touch-callout: none;" class="shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-emerald-400 bg-slate-900 px-2 py-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"><svg width="12" height="20" viewBox="0 0 24 36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="pointer-events-none"><path d="M12 14V3m-5 5 5-5 5 5M3 18h18M12 22v11m-5-5 5 5 5-5"/></svg></button>
+                            <div class="flex flex-1 min-w-0 items-center gap-1.5">
+                            ${ex.transferFrom ? `<div class="flex-1 min-w-0 max-w-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-300" title="Bài trước khi transfer">${escapeTextValue(ex.transferFrom)}</div>` : `
+                            <div class="flex-1 min-w-0 max-w-xs relative predictive-input-container">
                                 <input type="text" value="${String(ex.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" placeholder="Nhập tên bài tập..." autocomplete="off"
                                     onfocus="showPredictiveDropdown(this, '${member.id}', ${exIndex})"
                                     oninput="handlePredictiveInput(this, '${member.id}', ${exIndex})"
-                                    onchange="updateExerciseName('${member.id}', ${exIndex}, this.value)"
+                                    onchange="commitExerciseNameInput(this, '${member.id}', ${exIndex})"
+                                    onkeydown="if(event.key==='Enter' &amp;&amp; !event.isComposing){event.preventDefault(); commitExerciseNameInput(this, '${member.id}', ${exIndex}, true)}" title="Chọn tên trong gợi ý; tên mới nhấn Enter để lưu"
                                     class="w-full max-w-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold focus:outline-none focus:border-emerald-500">
                                 <div id="pred_dropdown_${exIndex}" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto"></div>
-                            </div>
+                            </div>`}
 
+                            ${renderTransferPicker(member, exIndex, ex.name)}
+                            </div>
                             <button onclick="removeExerciseFromMemberLog('${member.id}', ${exIndex})" class="text-slate-500 hover:text-rose-400 p-1 text-xs">
                                 <i class="fa-solid fa-trash-can"></i>
                             </button>
                         </div>
 
-                        ${sugHtml}
+                        ${sugHtml ? `<div class="entry-suggestions space-y-1">${sugHtml}</div>` : ''}
 
                         <!-- Table các Sets -->
                         <div class="overflow-x-auto">
@@ -2685,22 +2981,22 @@ ${phaseGroupHtml}
                                 <thead>
                                     <tr class="text-[10px] text-slate-400 uppercase border-b border-slate-700">
                                         <th class="pb-1 w-7 font-semibold">SET</th>
-                                        <th class="pb-1 font-semibold">TẠ (KG)</th>
+                                        <th class="pb-1 font-semibold">${isBodyweightExercise(ex.name) ? 'TẠ THÊM (KG)' : 'TẠ (KG)'}</th>
                                         <th class="pb-1 font-semibold">REPS</th>
                                         <th class="pb-1 w-12 font-semibold text-center" title="Reps in reserve - số rep còn dư. Mặc định 0 = tập tới giới hạn">RIR</th>
-                                        <th class="pb-1 w-[3.75rem] font-semibold" title="e1RM = Tạ × (1 + (Rep + RIR) / 30)">1RM</th>
+                                        <th class="pb-1 w-[3.75rem] font-semibold" title="e1RM trung bình Epley, Brzycki và Lander; rep hiệu dụng = Rep + RIR < 37">1RM</th>
                                         <th class="pb-1 w-6"></th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-700/70">
                                     ${(ex.sets || []).map((s, setIndex) => {
-                                        const estRM = calculate1RM(s.weight, s.reps, s.rir);
+                                        const estRM = exerciseSet1RM(member, ex.name, suggestDate, s.weight, s.reps, s.rir);
                                         const rirVal = (s.rir === undefined || s.rir === null || s.rir === '') ? 0 : s.rir;
                                         return `
                                             <tr>
                                                 <td class="py-1.5 font-mono font-bold text-slate-400">${setIndex + 1}</td>
                                                 <td class="py-1.5 pr-1.5">
-                                                    <input type="number" step="0.5" value="${s.weight || ''}" placeholder="0" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                                                    <input data-weight-input type="number" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
                                                 </td>
                                                 <td class="py-1.5 pr-1.5">
                                                     <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
@@ -2709,7 +3005,7 @@ ${phaseGroupHtml}
                                                     <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none focus:border-amber-500">
                                                 </td>
                                                 <td class="py-1.5 font-mono text-emerald-400 text-[10px] font-semibold whitespace-nowrap">
-                                                    ${estRM > 0 ? estRM + ' kg' : '-'}
+                                                    ${estRM > 0 || (isBodyweightExercise(ex.name) && parseFloat(s.reps) > 0) ? estRM + ' kg' : '-'}
                                                 </td>
                                                 <td class="py-1.5 text-right">
                                                     <button onclick="removeSetFromExercise('${member.id}', ${exIndex}, ${setIndex})" class="text-slate-600 hover:text-rose-400 p-0.5">
@@ -2760,12 +3056,12 @@ ${phaseGroupHtml}
 
             let html = '';
             filtered.forEach(e => {
-                // onmousedown + preventDefault: giữ focus ở ô nhập để không kích hoạt onchange/vẽ lại
+                // Chặn đổi focus từ pointerdown (chuột và cảm ứng), chọn tại click để không lưu bản nháp
                 // trước khi bấm chọn (lỗi cũ: chữ đang gõ dở bị lưu thành bài mới thay vì bài được gợi ý)
                 const safeName = String(e.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                const safeCat = String(e.category || 'Khác').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const safeCat = String(EXERCISE_CATEGORIES[resolvedExerciseCategory(e)]).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 html += `
-                    <div onmousedown="event.preventDefault(); selectPredictiveExercise('${memberId}', ${exIndex}, '${encodeURIComponent(e.name || '')}')" class="px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex justify-between items-center border-b border-slate-800/40 last:border-0">
+                    <div onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="selectPredictiveExercise('${memberId}', ${exIndex}, '${encodeURIComponent(e.name || '')}')" class="px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex justify-between items-center border-b border-slate-800/40 last:border-0">
                         <span class="font-bold text-slate-200">${safeName}</span>
                         <span class="text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">${safeCat}</span>
                     </div>
@@ -2779,12 +3075,14 @@ ${phaseGroupHtml}
         function selectPredictiveExercise(memberId, exIndex, encodedName) {
             let exName = encodedName;
             try { exName = decodeURIComponent(encodedName); } catch (e) {}
+            const dropdown = document.getElementById(`pred_dropdown_${exIndex}`);
+            if (dropdown && dropdown.previousElementSibling) dropdown.previousElementSibling.value = exName;
             hideAllPredictiveDropdowns();
             updateExerciseName(memberId, exIndex, exName);
         }
 
         function hideAllPredictiveDropdowns() {
-            document.querySelectorAll('[id^="pred_dropdown_"]').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('[id^="pred_dropdown_"], [data-transfer-options]').forEach(el => el.classList.add('hidden'));
             activePredictiveDropdown = null;
         }
 
@@ -2820,6 +3118,29 @@ ${phaseGroupHtml}
                 persistData();
                 renderContent();
             }
+        }
+
+        function commitExerciseNameInput(input, memberId, index, confirmed = false) {
+            const member = window.appData.members.find(m => m.id === memberId);
+            const ex = member && member.logs[member.selectedDate || getTodayISODate()]?.exercises[index];
+            if (!ex) return;
+            const name = capitalizeExerciseName(input.value);
+            const match = (window.appData.exerciseLibrary || []).find(e => capitalizeExerciseName(e.name) === name);
+            if (!name || (!match && !confirmed)) { input.value = ex.name || ''; return; }
+            input.value = match ? match.name : name;
+            if (capitalizeExerciseName(ex.name) === name) return;
+            updateExerciseName(memberId, index, input.value);
+        }
+
+        function commitRoutineNameInput(input, routineIndex, index, confirmed = false) {
+            const ex = window.appData.routines?.[routineIndex]?.exercises?.[index];
+            if (!ex) return;
+            const name = capitalizeExerciseName(input.value);
+            const match = (window.appData.exerciseLibrary || []).find(e => capitalizeExerciseName(e.name) === name);
+            if (!name || (!match && !confirmed)) { input.value = ex.name || ''; return; }
+            input.value = match ? match.name : name;
+            if (capitalizeExerciseName(ex.name) === name) return;
+            updateRoutineExerciseName(routineIndex, index, input.value);
         }
 
         function updateExerciseName(memberId, exIndex, nameVal) {
@@ -2929,6 +3250,7 @@ ${phaseGroupHtml}
 
         // ========== SECTION 15: KHO BÀI TẬP (EXERCISE LIBRARY) ========== 
         // Quản lý Kho Bài Tập (Exercise Library Modal)
+        let libraryCategoryChanged = false;
         function openExerciseLibraryModal() {
             renderExerciseLibraryModalList();
             document.getElementById('exerciseLibraryModal').classList.remove('hidden');
@@ -2938,6 +3260,10 @@ ${phaseGroupHtml}
         function closeExerciseLibraryModal() {
             document.getElementById('exerciseLibraryModal').classList.add('hidden');
             document.getElementById('exerciseLibraryModal').classList.remove('flex');
+            if (libraryCategoryChanged) {
+                libraryCategoryChanged = false;
+                if (window.appData.activeTab === 'track') renderContent();
+            }
         }
 
         function renderExerciseLibraryModalList() {
@@ -2950,14 +3276,11 @@ ${phaseGroupHtml}
                 return;
             }
 
-            const categoryOrder = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Khác'];
-            const categoryLabels = {
-                Chest: 'CHEST', Back: 'BACK', Legs: 'LEGS', Shoulders: 'SHOULDERS',
-                Arms: 'ARMS', Core: 'CORE', Cardio: 'CARDIO / KHÁC', 'Khác': 'KHÁC'
-            };
-            const grouped = new Map();
+            const categoryOrder = Object.keys(EXERCISE_CATEGORIES);
+            const categoryLabels = EXERCISE_CATEGORIES;
+            const grouped = new Map(categoryOrder.map(category => [category, []]));
             lib.forEach((item, index) => {
-                const category = item.category || 'Khác';
+                const category = resolvedExerciseCategory(item);
                 if (!grouped.has(category)) grouped.set(category, []);
                 grouped.get(category).push({ ...item, originalIndex: index });
             });
@@ -2977,14 +3300,15 @@ ${phaseGroupHtml}
                 const items = grouped.get(category);
                 const label = categoryLabels[category] || escapeHtml(category).toUpperCase();
                 html += `
-                    <section class="bg-slate-900/70 border border-slate-800/70 p-3 rounded-xl">
+                    <section data-library-category="${escapeHtml(category)}" class="bg-slate-900/70 border border-slate-800/70 p-3 rounded-xl">
                         <h4 class="text-xs font-extrabold text-amber-400 uppercase tracking-wide mb-2.5 flex items-center gap-2">
                             <i class="fa-solid fa-dumbbell"></i> NHÓM: ${label} (${items.length})
                         </h4>
                         <div class="flex flex-wrap gap-2">`;
+                if (!items.length) html += '<p class="text-[10px] text-slate-500 py-1">Thả bài tập vào đây</p>';
                 items.forEach(item => {
                     html += `
-                        <div class="inline-flex items-center gap-1.5 max-w-full bg-slate-800/90 border border-slate-700 rounded-lg pl-2.5 pr-1.5 py-1.5">
+                        <div data-library-exercise="${item.originalIndex}" onpointerdown="startLibraryCategoryDrag(event, ${item.originalIndex})" oncontextmenu="event.preventDefault()" style="touch-action:none; -webkit-user-select:none; user-select:none" title="Kéo sang nhóm cơ khác" class="inline-flex items-center gap-1.5 max-w-full bg-slate-800/90 border border-slate-700 rounded-lg pl-2.5 pr-1.5 py-1.5 cursor-grab active:cursor-grabbing">
                             <span class="text-[11px] font-semibold text-slate-200 break-words">${escapeHtml(item.name)}</span>
                             <button type="button" aria-label="Xóa ${escapeHtml(item.name)} khỏi kho" title="Xóa bài tập" onclick="removeExerciseFromLibrary(${item.originalIndex})" class="shrink-0 text-slate-500 hover:text-rose-400 px-0.5 transition-colors">
                                 <i class="fa-solid fa-xmark"></i>
@@ -2994,6 +3318,81 @@ ${phaseGroupHtml}
                 html += `</div></section>`;
             });
             container.innerHTML = html;
+        }
+
+        function startLibraryCategoryDrag(event, index) {
+            if (event.isPrimary === false || event.button !== 0 || event.target.closest('button, input, select')) return;
+            const item = (window.appData.exerciseLibrary || [])[index];
+            const card = event.currentTarget;
+            if (!item || !card) return;
+            event.preventDefault();
+            hideAllPredictiveDropdowns();
+            const root = document.documentElement, pointerId = event.pointerId;
+            const library = document.getElementById('exerciseLibraryList');
+            const scroller = library.closest('.overflow-y-auto');
+            const rect = card.getBoundingClientRect();
+            let x = event.clientX, y = event.clientY, target = null, frame = null, done = false, lastTime = null;
+            const dx = x - rect.left, dy = y - rect.top;
+            const ghost = document.createElement('div');
+            ghost.textContent = item.name;
+            ghost.className = 'bg-slate-800 border border-emerald-400 rounded-lg px-3 py-2 text-xs text-white shadow-xl';
+            Object.assign(ghost.style, {position:'fixed',top:'0',left:'0',pointerEvents:'none',zIndex:'9999',maxWidth:'75vw',willChange:'transform'});
+            document.body.appendChild(ghost);
+            card.style.opacity = '0.35';
+            root.setPointerCapture(pointerId);
+            function highlight(next) {
+                if (target === next) return;
+                if (target) { target.style.outline = ''; target.style.backgroundColor = ''; }
+                target = next;
+                if (target) { target.style.outline = '2px solid #34d399'; target.style.backgroundColor = 'rgba(6,78,59,0.35)'; }
+            }
+            function paint() {
+                ghost.style.transform = 'translate3d(' + (x-dx) + 'px,' + (y-dy) + 'px,0)';
+                const el = document.elementFromPoint(x,y);
+                const zone = el && el.closest('[data-library-category]');
+                highlight(zone && library.contains(zone) ? zone : null);
+            }
+            function tick(time) {
+                if (!card.isConnected || document.getElementById('exerciseLibraryModal').classList.contains('hidden')) { finish(null,false); return; }
+                const dt = Math.min(32, lastTime === null ? 16 : time-lastTime); lastTime = time;
+                if (scroller) {
+                    const r = scroller.getBoundingClientRect(), edge = Math.min(56,r.height/4);
+                    if (y >= r.top && y <= r.bottom && x >= r.left && x <= r.right) {
+                        const speed = y < r.top+edge ? -(r.top+edge-y)/edge : (y > r.bottom-edge ? (y-r.bottom+edge)/edge : 0);
+                        scroller.scrollTop += speed * 600 * dt / 1000;
+                    }
+                }
+                paint(); frame = requestAnimationFrame(tick);
+            }
+            function move(e) { if (e.pointerId !== pointerId) return; x=e.clientX; y=e.clientY; e.preventDefault(); }
+            function up(e) { if (e.pointerId === pointerId) finish(e,true); }
+            function cancel(e) { if (!e || e.pointerId === undefined || e.pointerId === pointerId) finish(null,false); }
+            function hidden() { if (document.hidden) cancel(); }
+            function finish(e, commit) {
+                if (done) return; done=true;
+                if (e) { x=e.clientX; y=e.clientY; paint(); }
+                const category = target && target.dataset.libraryCategory;
+                highlight(null); cancelAnimationFrame(frame); ghost.remove(); card.style.opacity='';
+                document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up);
+                document.removeEventListener('pointercancel',cancel); root.removeEventListener('lostpointercapture',cancel);
+                window.removeEventListener('blur',cancel); document.removeEventListener('visibilitychange',hidden);
+                if (root.hasPointerCapture(pointerId)) root.releasePointerCapture(pointerId);
+                const currentIndex = (window.appData.exerciseLibrary || []).indexOf(item);
+                if (commit && card.isConnected && currentIndex >= 0 && category && category !== resolvedExerciseCategory(item)) updateExerciseCategory(currentIndex,category);
+            }
+            document.addEventListener('pointermove',move,{passive:false}); document.addEventListener('pointerup',up);
+            document.addEventListener('pointercancel',cancel); root.addEventListener('lostpointercapture',cancel);
+            window.addEventListener('blur',cancel); document.addEventListener('visibilitychange',hidden);
+            paint(); frame = requestAnimationFrame(tick);
+        }
+
+        function updateExerciseCategory(index, category) {
+            const item = (window.appData.exerciseLibrary || [])[index];
+            if (!item || !Object.prototype.hasOwnProperty.call(EXERCISE_CATEGORIES, category)) return;
+            item.category = category;
+            persistData();
+            renderExerciseLibraryModalList();
+            libraryCategoryChanged = true;
         }
 
         function addExerciseToLibrary() {
@@ -3012,7 +3411,10 @@ ${phaseGroupHtml}
                 return;
             }
 
-            window.appData.exerciseLibrary.push({ name: nameCap, category: category });
+            const bodyweightInput = document.getElementById('libNewExBodyweight');
+            window.appData.exerciseLibrary.push({ name: nameCap, category: category, ...(bodyweightInput && bodyweightInput.checked ? {bodyweight:true} : {}) });
+            if (bodyweightInput) bodyweightInput.checked = false;
+            libraryCategoryChanged = true;
             input.value = '';
             persistData();
             renderExerciseLibraryModalList();
@@ -3096,13 +3498,14 @@ ${phaseGroupHtml}
                         <div class="space-y-1.5 pl-2 border-l-2 border-slate-800">
                             <div id="routineExercises_${rIndex}" class="space-y-1.5">
                             ${(r.exercises || []).map((ex, exIdx) => `
-                                <div data-routine-exercise-index="${exIdx}" onpointerdown="startRoutineExerciseReorder(event, ${rIndex}, ${exIdx})" style="touch-action: pan-y;" class="flex items-center gap-2 px-2 py-1 rounded-lg cursor-grab active:cursor-grabbing">
+                                <div data-routine-exercise-index="${exIdx}" class="flex items-center gap-2 px-2 py-1 rounded-lg">
                                     <button type="button" data-routine-drag-handle title="Kéo để đổi thứ tự bài tập" aria-label="Kéo bài tập ${exIdx + 1}" onpointerdown="event.stopPropagation(); startRoutineExerciseReorder(event, ${rIndex}, ${exIdx})" oncontextmenu="event.preventDefault()" style="touch-action: none; -webkit-touch-callout: none;" class="shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-emerald-400 bg-slate-900 px-2 py-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"><svg width="12" height="20" viewBox="0 0 24 36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="pointer-events-none"><path d="M12 14V3m-5 5 5-5 5 5M3 18h18M12 22v11m-5-5 5 5 5-5"/></svg></button>
                                     <div class="relative flex-1 routine-predictive-container">
                                         <input type="text" value="${String(ex.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" placeholder="Nhập tên bài tập..." autocomplete="off"
                                             onfocus="showRoutinePredictiveDropdown(this, ${rIndex}, ${exIdx})"
                                             oninput="filterRoutinePredictiveOptions(this.value, ${rIndex}, ${exIdx})"
-                                            onchange="updateRoutineExerciseName(${rIndex}, ${exIdx}, this.value)"
+                                            onchange="commitRoutineNameInput(this, ${rIndex}, ${exIdx})"
+                                            onkeydown="if(event.key==='Enter' &amp;&amp; !event.isComposing){event.preventDefault(); commitRoutineNameInput(this, ${rIndex}, ${exIdx}, true)}" title="Chọn tên trong gợi ý; tên mới nhấn Enter để lưu"
                                             class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
                                         <div id="routine_pred_dropdown_${rIndex}_${exIdx}" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-40 max-h-48 overflow-y-auto"></div>
                                     </div>
@@ -3139,7 +3542,7 @@ ${phaseGroupHtml}
         function startRoutineExerciseReorder(event, rIndex, exIdx) {
             if (!event.isPrimary || event.button !== 0) return;
             const fromHandle = !!event.target.closest('[data-routine-drag-handle]');
-            if (!fromHandle && event.target.closest('input, textarea, select, button, a, label, summary, [contenteditable]')) return;
+            if (!fromHandle) return;
             event.preventDefault();
             document.activeElement?.blur();
             const routine = window.appData.routines?.[rIndex];
@@ -3209,8 +3612,8 @@ ${phaseGroupHtml}
             dropdown.innerHTML = filtered.map(e => {
                 const safeName = String(e.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
                 const encodedName = encodeURIComponent(e.name || '');
-                const safeCategory = String(e.category || 'Khác').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                return `<div onmousedown="event.preventDefault(); selectRoutinePredictiveExercise(${rIndex}, ${exIdx}, '${encodedName}')" class="px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex justify-between items-center border-b border-slate-800/40 last:border-0"><span class="font-bold text-slate-200">${safeName}</span><span class="text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">${safeCategory}</span></div>`;
+                const safeCategory = String(EXERCISE_CATEGORIES[resolvedExerciseCategory(e)]).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return `<div onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="selectRoutinePredictiveExercise(${rIndex}, ${exIdx}, '${encodedName}')" class="px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex justify-between items-center border-b border-slate-800/40 last:border-0"><span class="font-bold text-slate-200">${safeName}</span><span class="text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">${safeCategory}</span></div>`;
             }).join('');
             dropdown.classList.remove('hidden');
         }
@@ -3218,6 +3621,8 @@ ${phaseGroupHtml}
         function selectRoutinePredictiveExercise(rIndex, exIdx, encodedName) {
             const name = decodeURIComponent(encodedName);
             if (!window.appData.routines?.[rIndex]?.exercises?.[exIdx]) return;
+            const dropdown = document.getElementById(`routine_pred_dropdown_${rIndex}_${exIdx}`);
+            if (dropdown && dropdown.previousElementSibling) dropdown.previousElementSibling.value = name;
             window.appData.routines[rIndex].exercises[exIdx].name = name;
             persistData();
             renderRoutinesList();
