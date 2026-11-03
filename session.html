@@ -131,6 +131,36 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         [data-exercise-index]:has(input[type="number"]:focus) > .entry-suggestions,
         [data-exercise-index] > .entry-suggestions:focus-within,
         [data-exercise-index] > .entry-suggestions:hover { display: block; }
+        @keyframes transfer-input-open {
+            from { width: 0; opacity: 0; transform: translateX(-7px) scale(.96); }
+            to { width: 11rem; opacity: 1; transform: translateX(0) scale(1); }
+        }
+        details[data-transfer-picker][open] > .predictive-input-container {
+            transform-origin: left center;
+            animation: transfer-input-open 200ms cubic-bezier(.2,.8,.2,1) both;
+        }
+        @keyframes transfer-input-open-mobile {
+            0% { width: 0; opacity: 0; transform: translate3d(-18px,0,0) scale(.86); }
+            72% { width: 8rem; opacity: 1; transform: translate3d(2px,0,0) scale(1.025); }
+            100% { width: 8rem; opacity: 1; transform: translate3d(0,0,0) scale(1); }
+        }
+        @media (max-width: 639px) {
+            details[data-transfer-picker][open] > .predictive-input-container {
+                animation: transfer-input-open-mobile 350ms cubic-bezier(.2,.7,.2,1) both;
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            details[data-transfer-picker][open] > .predictive-input-container { animation: none; }
+        }
+        details[data-transfer-picker] > summary {
+            transition: color 250ms ease, background-color 250ms ease, border-color 250ms ease, box-shadow 250ms ease;
+        }
+        details[data-transfer-picker][data-closing="true"] > summary {
+            color: #94a3b8;
+            background-color: #0f172a;
+            border-color: #334155;
+            box-shadow: 0 0 8px rgba(129,140,248,0);
+        }
     </style>
 </head>
 <body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col">
@@ -2339,9 +2369,54 @@ ${phaseGroupHtml}
             const log = member.logs[member.selectedDate || getTodayISODate()];
             const ex = log && log.exercises[exIndex];
             const linked = !!(ex && ex.transferFrom);
-            return '<details ' + (linked ? 'open ' : '') + 'data-transfer-picker class="relative min-w-0 shrink group open:flex open:items-center open:gap-1.5"><summary onclick="' + (linked ? 'event.preventDefault(); cancelExerciseTransfer(\'' + member.id + '\', ' + exIndex + ')' : '') + '" aria-label="Đổi bài và transfer sức mạnh" title="Đổi bài và transfer sức mạnh" class="flex h-7 w-7 items-center justify-center cursor-pointer list-none rounded-lg border border-slate-700 bg-slate-900 text-indigo-300 hover:border-indigo-400/60 hover:bg-indigo-950/50 hover:text-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 transition-colors [&::-webkit-details-marker]:hidden"><svg class="transfer-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></summary>' +
+            return '<details ' + (linked ? 'open ' : '') + 'data-transfer-picker class="relative min-w-0 shrink group open:flex open:items-center open:gap-1.5"><summary onclick="toggleTransferPicker(event, \'' + member.id + '\', ' + exIndex + ')" aria-label="Đổi bài và transfer sức mạnh" title="Đổi bài và transfer sức mạnh" class="flex h-7 w-7 items-center justify-center cursor-pointer list-none rounded-lg border border-slate-700 bg-slate-900 text-indigo-300 hover:border-indigo-400/60 hover:bg-indigo-950/50 hover:text-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 transition-colors [&::-webkit-details-marker]:hidden"><svg class="transfer-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></summary>' +
                 '<div class="relative min-w-0 w-32 sm:w-44 predictive-input-container"><input type="text" aria-label="Bài muốn đổi sang" placeholder="Đổi sang bài…" value="' + escapeAttrValue(linked ? name : '') + '" autocomplete="off" class="w-full min-w-0 bg-slate-900 border border-indigo-500/40 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400" onfocus="filterTransferOptions(this, \'' + member.id + '\', ' + exIndex + ')" oninput="filterTransferOptions(this, \'' + member.id + '\', ' + exIndex + ')" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); replaceExerciseWithTransfer(\'' + member.id + '\', ' + exIndex + ', this.value)}else if(event.key===\'Escape\'){this.nextElementSibling.classList.add(\'hidden\')}" >' +
                 '<div class="hidden absolute top-full right-0 mt-1 w-52 max-w-[75vw] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto" data-transfer-options></div></div></details>';
+        }
+
+        function toggleTransferPicker(event, memberId, index) {
+            const picker = event.currentTarget.closest('details[data-transfer-picker]');
+            if (!picker || !picker.open) return;
+            event.preventDefault();
+            if (picker.dataset.closing) return;
+            const panel = picker.querySelector('.predictive-input-container');
+            if (!panel) { picker.open=false; return; }
+            const width = panel.getBoundingClientRect().width;
+            const arrowStyle = getComputedStyle(picker.querySelector('summary'));
+            const arrowBefore = {color:arrowStyle.color,backgroundColor:arrowStyle.backgroundColor,borderColor:arrowStyle.borderColor,boxShadow:arrowStyle.boxShadow};
+            const ghost = panel.cloneNode(true);
+            for (const node of [ghost,...ghost.querySelectorAll('*')]) for(const attr of Array.from(node.attributes)) if(attr.name==='id'||attr.name.startsWith('on'))node.removeAttribute(attr.name);
+            ghost.inert=true;ghost.setAttribute('aria-hidden','true');
+            Object.assign(ghost.style,{width:width+'px',minWidth:'0',flexShrink:'0',animation:'none',pointerEvents:'none',transformOrigin:'left center'});
+            ghost.querySelectorAll('[data-transfer-options]').forEach(el=>el.remove());
+            const member=window.appData.members.find(m=>m.id===memberId);
+            const log=member && member.logs[member.selectedDate || getTodayISODate()];
+            const ex=log && log.exercises[index], from=ex && ex.transferFrom;
+            let nextPicker=picker;
+            if(from){
+                // Hủy dữ liệu transfer ngay; chỉ bản sao hiển thị tiếp tục chạy hiệu ứng.
+                cancelExerciseTransfer(memberId,index);
+                const sourceIndex=log.exercises.findIndex(e=>capitalizeExerciseName(e.name)===capitalizeExerciseName(from));
+                nextPicker=document.querySelector('[data-exercise-index="'+sourceIndex+'"] details[data-transfer-picker]');
+            }
+            if(!nextPicker)return;
+            const original=nextPicker.querySelector('.predictive-input-container');
+            const display=original.style.display;
+            original.style.display='none';nextPicker.open=true;nextPicker.appendChild(ghost);
+            const arrow=nextPicker.querySelector('summary');
+            arrow.style.transition='none';Object.assign(arrow.style,arrowBefore);
+            void arrow.offsetWidth;
+            arrow.style.transition='';nextPicker.dataset.closing='true';
+            for(const property of ['color','background-color','border-color','box-shadow'])arrow.style.removeProperty(property);
+            let done=false;
+            const finish=()=>{if(done)return;done=true;ghost.remove();original.style.display=display;nextPicker.open=false;delete nextPicker.dataset.closing;};
+            const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const duration=reduced?100:(window.matchMedia('(max-width: 639px)').matches?350:200);
+            const timer=setTimeout(finish,duration+100);
+            if(typeof ghost.animate==='function'){
+                const animation=ghost.animate([{width:width+'px',opacity:1,transform:'translateX(0) scale(1)'},{width:'0px',opacity:0,transform:reduced?'none':'translateX(-10px) scale(.94)'}],{duration,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});
+                animation.finished.then(()=>{clearTimeout(timer);finish();},()=>{clearTimeout(timer);finish();});
+            }else finish();
         }
 
         function filterTransferOptions(input, memberId, exIndex) {
@@ -3250,6 +3325,7 @@ ${phaseGroupHtml}
             const oldMin = container && container.style.minHeight;
             const oldPosition = container && container.style.position;
             if (ghost) {
+                for (const panel of ghost.querySelectorAll('.entry-suggestions')) panel.style.setProperty('display', 'none', 'important');
                 for (const node of [ghost,...ghost.querySelectorAll('*')]) {
                     for (const attr of Array.from(node.attributes)) {
                         if (attr.name === 'id' || attr.name === 'data-exercise-index' || attr.name.startsWith('on')) node.removeAttribute(attr.name);
@@ -3269,7 +3345,7 @@ ${phaseGroupHtml}
             const emptyMessage=!log.exercises.length?container.firstElementChild:null;
             if(emptyMessage)emptyMessage.style.visibility='hidden';
             container.appendChild(ghost);
-            const duration=reduced?160:400, animations=[];
+            const duration=400, animations=[];
             animations.push(ghost.animate(reduced?[{opacity:1},{opacity:0}]:[{opacity:1,transform:'translate3d(0,0,0)',clipPath:'inset(0 0 0% 0)',offset:0},{opacity:0.85,transform:'translate3d(14px,0,0)',clipPath:'inset(0 0 0% 0)',offset:0.28},{opacity:0,transform:'translate3d(24px,0,0)',clipPath:'inset(0 0 100% 0)'}],{duration,easing:'ease-in-out',fill:'forwards'}));
             if(!reduced)for(const {next,rect:after} of survivors){
                 const index=Number(next.dataset.exerciseIndex),before=bounds[index>=exIndex?index+1:index];
