@@ -1,0 +1,18 @@
+{
+  "id": "./",
+  "name": "LOCHEOFITNESS",
+  "short_name": "LoCheoFitness",
+  "start_url": "./session.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "./assets/icons/app-icon.png",
+      "sizes": "420x420",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
