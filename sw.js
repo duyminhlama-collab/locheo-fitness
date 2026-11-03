@@ -1,6 +1,6 @@
-/* Generated release: e2887ea8f9834ed0. Rebuild with python tools/build-offline.py. */
+/* Generated release: ef1e1037967075c8. Rebuild with python tools/build-offline.py. */
 'use strict';
-const CACHE_NAME = 'locheofitness-shell-e2887ea8f9834ed0';
+const CACHE_NAME = 'locheofitness-shell-ef1e1037967075c8';
 const CORE = ["./session.html", "./index.html", "./manifest.webmanifest", "./assets/app.css", "./assets/icons/app-icon.png", "./assets/offline-storage.js", "./assets/vendor/chart-4.4.8.umd.js", "./assets/vendor/fontawesome/css/all.min.css", "./assets/vendor/fontawesome/webfonts/fa-brands-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-regular-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-solid-900.woff2", "./assets/vendor/fontawesome/webfonts/fa-v4compatibility.woff2", "./assets/vendor/THIRD_PARTY_NOTICES.txt"];
 const root = new URL('./', self.location.href);
 const absolute = path => new URL(path, root).href;
@@ -26,8 +26,16 @@ self.addEventListener('install', event => {
                     await cache.put(absolute(path), await safeResponse(response));
                 } finally { clearTimeout(timer); }
             }));
-            // Do not replace an open workout with another app release.
-            if (!self.registration.active) await self.skipWaiting();
+            // One-time automatic migration for the broken Safari redirect cache.
+            // Activation changes the worker only: never reload a workout or touch user data.
+            let brokenLegacyCache = false;
+            for (const name of await caches.keys()) {
+                if (!name.startsWith('locheofitness-shell-') || name === CACHE_NAME) continue;
+                const previous = await caches.open(name);
+                const oldShell = await previous.match(shell);
+                if (oldShell && oldShell.redirected) { brokenLegacyCache = true; break; }
+            }
+            if (!self.registration.active || brokenLegacyCache) await self.skipWaiting();
         } catch (error) { await caches.delete(CACHE_NAME); throw error; }
     })());
 });

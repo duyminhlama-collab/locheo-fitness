@@ -1,0 +1,29 @@
+<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cập nhật LOCHEOFITNESS</title><style>body{font:16px system-ui;background:#0f172a;color:#e2e8f0;max-width:520px;margin:12vh auto;padding:24px;line-height:1.6}button,a{color:#67e8f9}button{font:inherit;background:#1e293b;border:1px solid #475569;border-radius:10px;padding:10px 18px}small{color:#94a3b8}</style><h2>Cập nhật LOCHEOFITNESS</h2><p id="status">Trang sẽ tự cập nhật và mở lại app. Hãy giữ kết nối mạng.</p><p><button id="repair">Thử lại</button></p><small>Chỉ cập nhật phần ứng dụng. Không xóa nhật ký, nhóm, routine hoặc dữ liệu trên máy.</small><p><a href="./session">Mở app</a></p><script>
+const button=document.getElementById('repair'),statusText=document.getElementById('status');
+button.onclick=async()=>{
+ button.disabled=true;statusText.textContent='Đang tải bản sửa. Hãy giữ trang này mở…';
+ try{
+  if(!('serviceWorker' in navigator))throw Error('Safari chưa hỗ trợ bộ nhớ offline tại địa chỉ này.');
+  const reg=await navigator.serviceWorker.register('./sw.js',{scope:'./',updateViaCache:'none'});
+  await reg.update();
+  await new Promise((resolve,reject)=>{
+   const timer=setTimeout(()=>{clearInterval(poll);reject(Error('Tải quá lâu. Kiểm tra mạng rồi thử lại.'));},90000);
+   let checking=false;
+   const poll=setInterval(()=>{
+    if(reg.waiting){clearInterval(poll);clearTimeout(timer);
+     const worker=reg.waiting;
+     worker.addEventListener('statechange',()=>{if(worker.state==='activated')resolve();else if(worker.state==='redundant')reject(Error('Chưa kích hoạt được bản sửa.'));});
+     worker.postMessage({type:'LCF_RECOVER_ACTIVATE'});
+    }else if(!reg.installing && reg.active && !checking){
+     checking=true;const channel=new MessageChannel();
+     const pingTimer=setTimeout(()=>{checking=false;channel.port1.close();},1500);
+     channel.port1.onmessage=event=>{if(event.data && event.data.redirectSafe){clearTimeout(pingTimer);clearInterval(poll);clearTimeout(timer);channel.port1.close();resolve();}};
+     reg.active.postMessage({type:'LCF_REDIRECT_SAFE'},[channel.port2]);
+    }
+   },150);
+  });
+  statusText.textContent='Đã cập nhật. Đang mở app…';location.replace('./session');
+ }catch(error){statusText.textContent='Chưa cập nhật được: '+error.message;button.disabled=false;}
+};
+button.click();
+</script></html>

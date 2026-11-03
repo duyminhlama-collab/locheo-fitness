@@ -23,3 +23,9 @@
 
 /repair.html
   Cache-Control: no-store
+
+/update
+  Cache-Control: no-store
+
+/update.html
+  Cache-Control: no-store
