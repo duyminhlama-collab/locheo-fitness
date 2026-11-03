@@ -3240,40 +3240,58 @@ ${phaseGroupHtml}
             const log = member && member.logs[date];
             if (!log || !log.exercises || !log.exercises[exIndex]) return;
             const container = activeTrackMemberId === memberId ? document.getElementById('memberExercisesContainer') : null;
-            const card = container && container.querySelector('[data-exercise-index="'+exIndex+'"]');
-            const rect = card && card.getBoundingClientRect();
-            const ghost = card && card.cloneNode(true);
+            if (container && container._deleteFeedbackCleanup) container._deleteFeedbackCleanup();
+            const cards = container ? Array.from(container.querySelectorAll('[data-exercise-index]')) : [];
+            const bounds = cards.map(card => card.getBoundingClientRect());
+            const card = cards[exIndex], reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const animated = card && typeof card.animate === 'function';
+            const ghost = animated ? card.cloneNode(true) : null;
+            const oldHeight = container && container.getBoundingClientRect().height;
+            const oldMin = container && container.style.minHeight;
+            const oldPosition = container && container.style.position;
             if (ghost) {
                 for (const node of [ghost,...ghost.querySelectorAll('*')]) {
                     for (const attr of Array.from(node.attributes)) {
                         if (attr.name === 'id' || attr.name === 'data-exercise-index' || attr.name.startsWith('on')) node.removeAttribute(attr.name);
                     }
                 }
-                ghost.setAttribute('aria-hidden','true'); ghost.inert=true;
-                Object.assign(ghost.style,{height:rect.height+'px',minHeight:'0',overflow:'hidden',boxSizing:'border-box',pointerEvents:'none',borderColor:'#fb7185',backgroundColor:'rgba(136,19,55,0.2)',transformOrigin:'center top'});
+                ghost.setAttribute('aria-hidden','true');ghost.inert=true;
+                container.style.minHeight=oldHeight+'px';container.style.position='relative';
             }
             log.exercises.splice(exIndex,1);
             persistData();
             refreshMemberExercises(memberId);
             if (!ghost || !container.isConnected) return;
-            // Keep feedback in the list, not fixed to Safari's moving keyboard viewport.
-            const emptyMessage = !log.exercises.length ? container.firstElementChild : null;
-            if (emptyMessage) emptyMessage.hidden=true;
-            container.insertBefore(ghost,container.querySelector('[data-exercise-index="'+exIndex+'"]') || container.firstChild && !log.exercises.length && container.firstChild || null);
-            let cleaned=false;
-            const cleanup=()=>{if(cleaned)return;cleaned=true;ghost.remove();if(emptyMessage)emptyMessage.hidden=false;};
-            const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            const duration=reduced?120:230;
-            const end=reduced ? {opacity:0} : {height:'0px',opacity:0,paddingTop:'0px',paddingBottom:'0px',borderTopWidth:'0px',borderBottomWidth:'0px',marginTop:'0px',marginBottom:'0px',transform:'scale(0.98)'};
-            const fallback=setTimeout(cleanup,duration+100);
-            if (typeof ghost.animate==='function') {
-                const animation=ghost.animate([{height:rect.height+'px',opacity:1},end],{duration,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'});
-                animation.finished.then(()=>{clearTimeout(fallback);cleanup();},()=>{clearTimeout(fallback);cleanup();});
-            } else {
-                ghost.style.transition='all '+duration+'ms ease-out';
-                void ghost.offsetHeight;
-                Object.assign(ghost.style,end);
+            if (memberTrendFrame !== null) { cancelAnimationFrame(memberTrendFrame); memberTrendFrame=null; }
+            const rect=bounds[exIndex], parent=container.getBoundingClientRect();
+            Object.assign(ghost.style,{position:'absolute',left:(rect.left-parent.left)+'px',top:(rect.top-parent.top)+'px',width:rect.width+'px',height:rect.height+'px',boxSizing:'border-box',margin:'0',pointerEvents:'none',zIndex:'2',willChange:'transform, opacity',overflow:'hidden'});
+            const survivors=Array.from(container.querySelectorAll('[data-exercise-index]')).map(next=>({next,rect:next.getBoundingClientRect()}));
+            const emptyMessage=!log.exercises.length?container.firstElementChild:null;
+            if(emptyMessage)emptyMessage.style.visibility='hidden';
+            container.appendChild(ghost);
+            const duration=reduced?160:400, animations=[];
+            animations.push(ghost.animate(reduced?[{opacity:1},{opacity:0}]:[{opacity:1,transform:'translate3d(0,0,0)',clipPath:'inset(0 0 0% 0)',offset:0},{opacity:0.85,transform:'translate3d(14px,0,0)',clipPath:'inset(0 0 0% 0)',offset:0.28},{opacity:0,transform:'translate3d(24px,0,0)',clipPath:'inset(0 0 100% 0)'}],{duration,easing:'ease-in-out',fill:'forwards'}));
+            if(!reduced)for(const {next,rect:after} of survivors){
+                const index=Number(next.dataset.exerciseIndex),before=bounds[index>=exIndex?index+1:index];
+                if(!before)continue;
+                const delta=before.top-after.top;
+                if(Math.abs(delta)<1)continue;
+                next.style.willChange='transform';
+                animations.push(next.animate([{transform:'translate3d(0,'+delta+'px,0)',offset:0},{transform:'translate3d(0,'+delta+'px,0)',offset:0.28},{transform:'translate3d(0,0,0)'}],{duration,easing:'ease-in-out'}));
             }
+            let cleaned=false;
+            const cleanup=()=>{
+                if(cleaned)return;cleaned=true;ghost.remove();
+                for(const animation of animations)animation.cancel();
+                if(container._deleteFeedbackCleanup === cleanup)delete container._deleteFeedbackCleanup;
+                container.style.minHeight=oldMin;container.style.position=oldPosition;
+                for(const {next} of survivors)next.style.willChange='';
+                if(emptyMessage)emptyMessage.style.visibility='';
+                finishSetEditing(memberId);
+            };
+            container._deleteFeedbackCleanup=cleanup;
+            const fallback=setTimeout(cleanup,duration+120);
+            Promise.allSettled(animations.map(a=>a.finished)).then(()=>{clearTimeout(fallback);cleanup();});
         }
 
         function addSetToExercise(memberId, exIndex) {
