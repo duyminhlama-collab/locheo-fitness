@@ -3240,37 +3240,39 @@ ${phaseGroupHtml}
             const log = member && member.logs[date];
             if (!log || !log.exercises || !log.exercises[exIndex]) return;
             const container = activeTrackMemberId === memberId ? document.getElementById('memberExercisesContainer') : null;
-            const cards = container ? Array.from(container.querySelectorAll('[data-exercise-index]')) : [];
-            const previous = cards.map(card => card.getBoundingClientRect());
-            const card = cards[exIndex];
-            const animate = card && typeof card.animate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            let ghost = null;
-            if (animate) {
-                const rect = previous[exIndex];
-                ghost = card.cloneNode(true);
+            const card = container && container.querySelector('[data-exercise-index="'+exIndex+'"]');
+            const rect = card && card.getBoundingClientRect();
+            const ghost = card && card.cloneNode(true);
+            if (ghost) {
                 for (const node of [ghost,...ghost.querySelectorAll('*')]) {
                     for (const attr of Array.from(node.attributes)) {
                         if (attr.name === 'id' || attr.name === 'data-exercise-index' || attr.name.startsWith('on')) node.removeAttribute(attr.name);
                     }
                 }
-                ghost.setAttribute('aria-hidden','true');ghost.inert=true;
-                Object.assign(ghost.style,{position:'fixed',left:rect.left+'px',top:rect.top+'px',width:rect.width+'px',height:rect.height+'px',margin:'0',zIndex:'30',pointerEvents:'none',transformOrigin:'center top',borderColor:'#fb7185'});
-                document.body.appendChild(ghost);
+                ghost.setAttribute('aria-hidden','true'); ghost.inert=true;
+                Object.assign(ghost.style,{height:rect.height+'px',minHeight:'0',overflow:'hidden',boxSizing:'border-box',pointerEvents:'none',borderColor:'#fb7185',backgroundColor:'rgba(136,19,55,0.2)',transformOrigin:'center top'});
             }
-            // Lưu ngay; hiệu ứng chỉ là phản hồi thị giác, không trì hoãn thao tác xóa.
             log.exercises.splice(exIndex,1);
             persistData();
             refreshMemberExercises(memberId);
-            if (ghost) {
-                const exit = ghost.animate([{opacity:0.85,transform:'translateX(0) scale(1)'},{opacity:0,transform:'translateX(14px) scale(0.97)'}],{duration:170,easing:'ease-out'});
-                exit.finished.then(()=>ghost.remove(),()=>ghost.remove());
-                for (const next of container.querySelectorAll('[data-exercise-index]')) {
-                    const index = Number(next.dataset.exerciseIndex);
-                    const old = previous[index >= exIndex ? index+1 : index];
-                    if (!old) continue;
-                    const delta = old.top-next.getBoundingClientRect().top;
-                    if (Math.abs(delta)>1) next.animate([{transform:'translateY('+delta+'px)'},{transform:'translateY(0)'}],{duration:190,easing:'cubic-bezier(.2,.8,.2,1)'});
-                }
+            if (!ghost || !container.isConnected) return;
+            // Keep feedback in the list, not fixed to Safari's moving keyboard viewport.
+            const emptyMessage = !log.exercises.length ? container.firstElementChild : null;
+            if (emptyMessage) emptyMessage.hidden=true;
+            container.insertBefore(ghost,container.querySelector('[data-exercise-index="'+exIndex+'"]') || container.firstChild && !log.exercises.length && container.firstChild || null);
+            let cleaned=false;
+            const cleanup=()=>{if(cleaned)return;cleaned=true;ghost.remove();if(emptyMessage)emptyMessage.hidden=false;};
+            const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const duration=reduced?120:230;
+            const end=reduced ? {opacity:0} : {height:'0px',opacity:0,paddingTop:'0px',paddingBottom:'0px',borderTopWidth:'0px',borderBottomWidth:'0px',marginTop:'0px',marginBottom:'0px',transform:'scale(0.98)'};
+            const fallback=setTimeout(cleanup,duration+100);
+            if (typeof ghost.animate==='function') {
+                const animation=ghost.animate([{height:rect.height+'px',opacity:1},end],{duration,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'});
+                animation.finished.then(()=>{clearTimeout(fallback);cleanup();},()=>{clearTimeout(fallback);cleanup();});
+            } else {
+                ghost.style.transition='all '+duration+'ms ease-out';
+                void ghost.offsetHeight;
+                Object.assign(ghost.style,end);
             }
         }
 

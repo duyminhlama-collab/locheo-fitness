@@ -1,6 +1,6 @@
-/* Generated release: a9b28155eb167a4b. Rebuild with python tools/build-offline.py. */
+/* Generated release: bc80a1e8bfe7d3e5. Rebuild with python tools/build-offline.py. */
 'use strict';
-const CACHE_NAME = 'locheofitness-shell-a9b28155eb167a4b';
+const CACHE_NAME = 'locheofitness-shell-bc80a1e8bfe7d3e5';
 const CORE = ["./session.html", "./index.html", "./manifest.webmanifest", "./assets/app.css", "./assets/icons/app-icon.png", "./assets/offline-storage.js", "./assets/vendor/chart-4.4.8.umd.js", "./assets/vendor/fontawesome/css/all.min.css", "./assets/vendor/fontawesome/webfonts/fa-brands-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-regular-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-solid-900.woff2", "./assets/vendor/fontawesome/webfonts/fa-v4compatibility.woff2", "./assets/vendor/THIRD_PARTY_NOTICES.txt"];
 const root = new URL('./', self.location.href);
 const absolute = path => new URL(path, root).href;
