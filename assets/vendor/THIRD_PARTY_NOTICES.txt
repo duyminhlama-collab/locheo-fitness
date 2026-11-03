@@ -1,0 +1,5 @@
+LOCHEOFITNESS offline vendor assets
+
+Chart.js 4.4.8 - MIT - https://github.com/chartjs/Chart.js/blob/v4.4.8/LICENSE.md
+Font Awesome Free 6.4.0 - Icons CC BY 4.0, fonts SIL OFL 1.1, code MIT - https://fontawesome.com/license/free
+Tailwind CSS 3.4.17 generated styles - MIT - https://github.com/tailwindlabs/tailwindcss/blob/v3.4.17/LICENSE
