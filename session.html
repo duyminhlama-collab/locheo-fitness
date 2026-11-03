@@ -458,9 +458,9 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
     <script>
         (function() {
             const SYNC_STATE_KEY = 'gym_group_tracker_sync_state_v1';
-            // Poll mỗi 60 giây; đẩy thay đổi vẫn giữ cơ chế hiện tại.
+            // Poll mỗi 30 giây; đẩy thay đổi vẫn giữ cơ chế hiện tại.
             // Tab ẩn thì dừng hẳn.
-            const POLL_STEPS_MS = [60000];
+            const POLL_STEPS_MS = [30000];
             // Routine, lịch tuần và trạng thái giao diện riêng từng máy, không đồng bộ giữa các thành viên
             const LOCAL_ONLY_KEYS = ['routines', 'weeklySchedule', 'activeTab'];
             const LOCAL_ONLY_MEMBER_KEYS = ['selectedDate'];
@@ -913,6 +913,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         let deferredPwaPrompt = null;
         let overviewSelectedExercise = "Bench Press";
         let overviewExerciseOptions = [];
+        const TRACK_MEMBER_KEY = 'gym_group_tracker_last_track_member';
         let activeTrackMemberId = null;
         let chart1RMInstance = null;
         let chartRelativeInstance = null;
@@ -1163,6 +1164,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
             // Navigation mới: chỉ có Tổng quan và Track tạ; giữ lại thành viên đã chọn nếu có.
             const validMemberIds = (window.appData.members || []).map(m => m.id);
+            const savedTrackMember = appStorage.getItem(TRACK_MEMBER_KEY);
+            if (validMemberIds.includes(savedTrackMember)) activeTrackMemberId = savedTrackMember;
             if (window.appData.activeTab && !['overview', 'track'].includes(window.appData.activeTab)) {
                 activeTrackMemberId = window.appData.activeTab;
                 window.appData.activeTab = 'track';
@@ -1175,6 +1178,14 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 m.selectedDate = todayStr;
             });
 
+            document.addEventListener('pointerdown', (e) => {
+                const input = document.activeElement;
+                if (!input || !input.matches('input, textarea')) return;
+                if (e.target.closest('input, textarea, select, button, a, label, summary, [role="button"], [data-track-drag-handle], [data-routine-drag-handle], [data-library-exercise]')) return;
+                input.blur();
+                hideAllPredictiveDropdowns();
+                if (typeof hideAllRoutinePredictiveDropdowns === 'function') hideAllRoutinePredictiveDropdowns();
+            });
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('.predictive-input-container')) {
                     hideAllPredictiveDropdowns();
@@ -1214,6 +1225,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         }
 
         window.saveLocalDataOnly = function() {
+            if (activeTrackMemberId && (window.appData.members || []).some(m => m.id === activeTrackMemberId) && appStorage.getItem(TRACK_MEMBER_KEY) !== activeTrackMemberId) appStorage.setItem(TRACK_MEMBER_KEY, activeTrackMemberId);
             appStorage.setItem(STORAGE_KEY, JSON.stringify(window.appData));
         };
 
@@ -1324,9 +1336,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         }
 
         function selectTrackMember(memberId) {
-            activeTrackMemberId = memberId;
             const member = (window.appData.members || []).find(m => m.id === memberId);
-            if (member) member.selectedDate = member.selectedDate || getTodayISODate();
+            if (!member) return;
+            activeTrackMemberId = memberId;
+            member.selectedDate = member.selectedDate || getTodayISODate();
+            saveLocalDataOnly();
             renderContent();
         }
 
@@ -1352,6 +1366,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             }
             if (!activeTrackMemberId || !members.some(m => m.id === activeTrackMemberId)) activeTrackMemberId = members[0].id;
             const member = members.find(m => m.id === activeTrackMemberId);
+            if (appStorage.getItem(TRACK_MEMBER_KEY) !== member.id) appStorage.setItem(TRACK_MEMBER_KEY, member.id);
             const color = MEMBER_COLORS[member.colorIndex % MEMBER_COLORS.length].solid;
             const selector = `<div class="bg-cardbg border border-cardborder rounded-xl p-2 sm:p-2.5 mb-3 shadow-lg flex flex-wrap items-center gap-2"><div class="w-7 h-7 rounded-lg flex items-center justify-center bg-cyan-500/10 border border-cyan-500/30 text-cyan-300"><i class="fa-solid fa-users text-sm"></i></div><div class="flex-1 min-w-[130px]"><div class="text-[11px] uppercase tracking-wide text-slate-500 font-bold mb-0.5">Track tạ của thành viên</div><div class="text-xs text-slate-400">Chọn người để xem hoặc nhập nhật ký</div></div><div class="flex items-center gap-2 w-full sm:w-auto"><div class="relative flex-1 sm:w-64"><select style="color: ${color}; border-color: ${color};" aria-label="Chọn thành viên track tạ" onchange="selectTrackMember(this.value)" class="w-full appearance-none bg-slate-900 border border-cyan-500/40 hover:border-cyan-400 focus:border-cyan-300 rounded-xl pl-2.5 pr-7 py-1.5 text-sm font-bold text-white outline-none shadow-inner">${members.map(m => `<option value="${m.id}" ${m.id === member.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select><i style="color: ${color};" class="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400 text-xs"></i></div><button type="button" title="Đổi tên thành viên" aria-label="Đổi tên thành viên" onclick="openEditMemberModal('${member.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 rounded-lg transition"><i class="fa-solid fa-user-pen text-sm"></i></button><button type="button" title="Xóa thành viên" aria-label="Xóa thành viên" onclick="deleteMember('${member.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center bg-rose-950/80 border border-rose-800/60 hover:bg-rose-900 text-rose-400 rounded-lg transition"><i class="fa-solid fa-trash-can text-sm"></i></button></div></div>`;
             container.innerHTML = selector + '<div id="trackMemberContent"></div>';
@@ -1900,11 +1915,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         function renderMemberTab(container, member) {
             const dateStr = member.selectedDate || getTodayISODate();
             if (!member.logs) member.logs = {};
-            if (!member.logs[dateStr]) {
-                member.logs[dateStr] = { bodyWeight: '', exercises: [] };
-            }
-
-            const currentLog = member.logs[dateStr];
+            // Chỉ xem thành viên không tạo nhật ký rỗng để đồng bộ lên nhóm.
+            const currentLog = member.logs[dateStr] || {bodyWeight:'',exercises:[]};
             const bwCarry = getCarriedBodyWeight(member, dateStr);
             let bwCarryTip = 'Nhập khi cân nặng thay đổi, các ngày sau tự giữ mức này';
             const bwInherited = !!bwCarry && !currentLog.bodyWeight;   // ngày này chưa nhập -> dùng cân nặng gần nhất trước đó
@@ -1987,7 +1999,7 @@ ${phaseGroupHtml}
 
                     ${scheduleAdviceHtml}
 
-                    ${renderTrendPanel(member, dateStr)}
+                    <div id="memberTrendPanel">${renderTrendPanel(member, dateStr)}</div>
 
                     <!-- Danh sách các bài tập trong ngày -->
                     <div class="space-y-2.5" id="memberExercisesContainer">
@@ -2873,12 +2885,64 @@ ${phaseGroupHtml}
             document.addEventListener('visibilitychange', visibility);
         }
 
-        function renderSuggestionRow(member, exIndex, sug) {
-            const parts = sug.last.date.split('-');
-            const dd = parts.length === 3 ? `${parts[2]}/${parts[1]}` : sug.last.date;
-            const rirTxt = sug.last.rir !== null ? ` RIR ${sug.last.rir}` : '';
-            const tip = `${sug.reason} · e1RM = TB(Epley, Brzycki, Lander) với Rep + RIR < 37; nhắm RIR ${sug.rir}. Dựa trên ${sug.sessions} buổi (${sug.span} ngày). Buổi ${dd}: ${sug.last.weight}kg x ${sug.last.reps}${rirTxt}. Khung rep ${sug.lo}-${sug.hi} (${sug.repSrc}; thường ~${sug.P} rep). Bước tạ ${sug.step}kg. Nhịp tăng: ${sug.rateTxt}, ${sug.speedTxt}.${sug.phase ? ' Chế độ: ' + ({ bulk: 'Bulking', cut: 'Cutting', maintain: 'Maingain' })[sug.phase] + '.' : ''}${sug.bwKg ? ' Cân nặng: ' + sug.bwKg + '.' : ''}${sug.calibN >= 3 ? ' Hiệu chỉnh theo thực tế: ' + ((sug.calib - 1) * 100).toFixed(1) + '%.' : ''}`;
-            const altBtn = sug.alt ? `<button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.alt.weight}, ${sug.alt.reps}, ${sug.rir})" title="${sug.alt.label} (RIR ${sug.rir})" class="px-1.5 sm:px-2 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-md text-[10px] sm:text-[11px] font-semibold">${sug.alt.weight}×${sug.alt.reps}</button>` : '';
+        let memberTrendFrame = null;
+        function finishSetEditing(memberId) {
+            if (memberTrendFrame !== null) cancelAnimationFrame(memberTrendFrame);
+            memberTrendFrame = requestAnimationFrame(() => {
+                memberTrendFrame = null;
+                if (window.appData.activeTab !== 'track' || activeTrackMemberId !== memberId) return;
+                const member = window.appData.members.find(m => m.id === memberId);
+                const panel = document.getElementById('memberTrendPanel');
+                if (member && panel) panel.innerHTML = renderTrendPanel(member, member.selectedDate || getTodayISODate());
+            });
+        }
+
+        function refreshMemberExercises(memberId) {
+            if (window.appData.activeTab !== 'track' || activeTrackMemberId !== memberId) return;
+            const member = window.appData.members.find(m => m.id === memberId);
+            const container = document.getElementById('memberExercisesContainer');
+            if (!member || !container) return;
+            const log = member.logs[member.selectedDate || getTodayISODate()] || {exercises:[]};
+            container.innerHTML = renderMemberExerciseList(member, log);
+            finishSetEditing(memberId);
+        }
+
+        function getLastRecordedSession(member, name, dateStr) {
+            const key = capitalizeExerciseName(name), bodyweight = isBodyweightExercise(key);
+            const dates = Object.keys(member.logs || {}).filter(d => d < dateStr).sort().reverse();
+            for (const date of dates) {
+                const sets = [];
+                for (const ex of member.logs[date].exercises || []) {
+                    if (capitalizeExerciseName(ex.name) !== key) continue;
+                    for (const set of ex.sets || []) {
+                        const weight = bodyweight && (set.weight === '' || set.weight == null) ? 0 : parseFloat(set.weight);
+                        const reps = parseFloat(set.reps);
+                        if (!Number.isFinite(weight) || !Number.isFinite(reps) || !(reps > 0) || (bodyweight ? weight < 0 : !(weight > 0))) continue;
+                        const r = parseFloat(set.rir), rir = Number.isFinite(r) ? r : null;
+                        sets.push({date,weight,reps,rir,eff:estimate1RM(weight,reps,rir)});
+                    }
+                }
+                if (sets.length) return sets.reduce((a,b) => {
+                    if (a.eff > 0 || b.eff > 0) return b.eff > a.eff ? b : a;
+                    return b.weight > a.weight || (b.weight === a.weight && b.reps > a.reps) ? b : a;
+                });
+            }
+            return null;
+        }
+
+        function renderLastSessionRow(last, hasSuggestion) {
+            if (!last) return '';
+            const parts = last.date.split('-');
+            const date = parts.length === 3 ? parts[2]+'/'+parts[1] : last.date;
+            return '<div class="last-session '+(hasSuggestion ? 'last-session-with-suggestion ' : '')+'flex flex-wrap items-center gap-2 rounded-lg bg-indigo-950/40 border border-indigo-500/30 px-1.5 sm:px-2 py-1 sm:py-1.5 text-[10px] sm:text-[11px] tabular-nums text-slate-400" title="Lần tập gần nhất: '+escapeAttrValue(last.date)+'"><span><i class="fa-regular fa-calendar mr-1" aria-hidden="true"></i>'+escapeTextValue(date)+':</span><span>'+last.weight+' kg × '+last.reps+'</span>'+(last.rir !== null && last.rir !== undefined ? '<span>· RIR '+last.rir+'</span>' : '')+'</div>';
+        }
+
+        function renderSuggestionRow(member, exIndex, sug, previous = sug.last) {
+            const parts = previous.date.split('-');
+            const dd = parts.length === 3 ? `${parts[2]}/${parts[1]}` : previous.date;
+            const rirTxt = previous.rir !== null ? ` RIR ${previous.rir}` : '';
+            const tip = `${sug.reason} · e1RM = TB(Epley, Brzycki, Lander) với Rep + RIR < 37; nhắm RIR ${sug.rir}. Dựa trên ${sug.sessions} buổi (${sug.span} ngày). Buổi ${dd}: ${previous.weight}kg x ${previous.reps}${rirTxt}. Khung rep ${sug.lo}-${sug.hi} (${sug.repSrc}; thường ~${sug.P} rep). Bước tạ ${sug.step}kg. Nhịp tăng: ${sug.rateTxt}, ${sug.speedTxt}.${sug.phase ? ' Chế độ: ' + ({ bulk: 'Bulking', cut: 'Cutting', maintain: 'Maingain' })[sug.phase] + '.' : ''}${sug.bwKg ? ' Cân nặng: ' + sug.bwKg + '.' : ''}${sug.calibN >= 3 ? ' Hiệu chỉnh theo thực tế: ' + ((sug.calib - 1) * 100).toFixed(1) + '%.' : ''}`;
+            const altBtn = sug.alt ? `<button onpointerdown="event.preventDefault()" onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.alt.weight}, ${sug.alt.reps}, ${sug.rir})" title="${sug.alt.label} (RIR ${sug.rir})" class="px-1.5 sm:px-2 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-md text-[10px] sm:text-[11px] font-semibold">${sug.alt.weight}×${sug.alt.reps}</button>` : '';
             return `
                         <div title="${escapeAttrValue(tip)}" class="bg-indigo-950/40 border border-indigo-500/30 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 flex flex-wrap items-start justify-between gap-x-1.5 sm:gap-x-3 gap-y-1 sm:gap-y-1.5">
                             <div class="grid items-center gap-x-1 sm:gap-x-2 gap-y-0.5 sm:gap-y-1 text-[10px] sm:text-[11px] tabular-nums" style="grid-template-columns: auto max-content max-content max-content max-content;">
@@ -2888,14 +2952,14 @@ ${phaseGroupHtml}
                                 <span class="text-emerald-300 font-semibold" title="Số rep còn dư nên chừa lại">· RIR ${sug.rir}</span>
                                 <span class="px-1 sm:px-1.5 py-px rounded-full border text-[8px] sm:text-[9px] font-semibold whitespace-nowrap ${sug.tag.cls}">${sug.tag.text}</span>
                                 <span class="text-slate-400 inline-flex items-center gap-0.5 sm:gap-1"><i class="fa-regular fa-calendar w-2.5 sm:w-3 text-center shrink-0" aria-hidden="true"></i><span>${dd}:</span></span>
-                                <span class="text-slate-400 text-center">${sug.last.weight} kg</span>
-                                <span class="text-slate-400 text-right">× ${sug.last.reps}</span>
-                                <span class="text-slate-400">${sug.last.rir !== null && sug.last.rir !== undefined ? `· RIR ${sug.last.rir}` : ''}</span>
+                                <span class="text-slate-400 text-center">${previous.weight} kg</span>
+                                <span class="text-slate-400 text-right">× ${previous.reps}</span>
+                                <span class="text-slate-400">${previous.rir !== null && previous.rir !== undefined ? `· RIR ${previous.rir}` : ''}</span>
                                 <span aria-hidden="true"></span>
                             </div>
                             <div class="shrink-0 flex flex-wrap items-center gap-1">
                                 ${altBtn}
-                                <button onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.weight}, ${sug.reps}, ${sug.rir})" class="px-1.5 sm:px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] sm:text-[11px] font-semibold">Điền</button>
+                                <button onpointerdown="event.preventDefault()" onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.weight}, ${sug.reps}, ${sug.rir})" class="px-1.5 sm:px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] sm:text-[11px] font-semibold">Điền</button>
                             </div>
                         </div>`;
         }
@@ -2932,7 +2996,7 @@ ${phaseGroupHtml}
             });
             if (!filled) { showToast("Các set đã có tạ, không điền đè"); return; }
             persistData();
-            renderContent();
+            refreshMemberExercises(memberId);
             showToast(`Đã điền gợi ý cho ${filled} set`);
         }
 
@@ -2951,7 +3015,8 @@ ${phaseGroupHtml}
             return currentLog.exercises.map((ex, exIndex) => {
                 const transfer = getStrengthTransfer(member, ex.name, suggestDate);
                 const sug = getWeightSuggestion(member, ex.name, suggestDate, false, transfer);
-                const sugHtml = (sug ? renderSuggestionRow(member, exIndex, sug) : '') + renderStrengthTransfer(member, exIndex, ex.name, suggestDate, transfer);
+                const lastSession = getLastRecordedSession(member, ex.name, suggestDate);
+                const sugHtml = sug ? renderSuggestionRow(member, exIndex, sug, lastSession || sug.last) + renderStrengthTransfer(member, exIndex, ex.name, suggestDate, transfer) : renderLastSessionRow(lastSession, false);
                 return `
                     <div data-exercise-index="${exIndex}" class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
                         <div class="flex justify-between items-center gap-2 border-b border-slate-700 pb-2">
@@ -2970,7 +3035,7 @@ ${phaseGroupHtml}
 
                             ${renderTransferPicker(member, exIndex, ex.name)}
                             </div>
-                            <button onclick="removeExerciseFromMemberLog('${member.id}', ${exIndex})" class="text-slate-500 hover:text-rose-400 p-1 text-xs">
+                            <button onpointerdown="event.preventDefault()" onclick="removeExerciseFromMemberLog('${member.id}', ${exIndex})" class="text-slate-500 hover:text-rose-400 p-1 text-xs">
                                 <i class="fa-solid fa-trash-can"></i>
                             </button>
                         </div>
@@ -2998,19 +3063,19 @@ ${phaseGroupHtml}
                                             <tr>
                                                 <td class="py-1.5 font-mono font-bold text-slate-400">${setIndex + 1}</td>
                                                 <td class="py-1.5 pr-1.5">
-                                                    <input data-weight-input type="number" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                                                    <input data-weight-input type="number" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
                                                 </td>
                                                 <td class="py-1.5 pr-1.5">
-                                                    <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                                                    <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
                                                 </td>
                                                 <td class="py-1.5 pr-1.5">
-                                                    <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none focus:border-amber-500">
+                                                    <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1); updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onblur="finishSetEditing('${member.id}')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none focus:border-amber-500">
                                                 </td>
-                                                <td class="py-1.5 font-mono text-emerald-400 text-[10px] font-semibold whitespace-nowrap">
+                                                <td data-set-rm class="py-1.5 font-mono text-emerald-400 text-[10px] font-semibold whitespace-nowrap">
                                                     ${estRM > 0 || (isBodyweightExercise(ex.name) && parseFloat(s.reps) > 0) ? estRM + ' kg' : '-'}
                                                 </td>
                                                 <td class="py-1.5 text-right">
-                                                    <button onclick="removeSetFromExercise('${member.id}', ${exIndex}, ${setIndex})" class="text-slate-600 hover:text-rose-400 p-0.5">
+                                                    <button onpointerdown="event.preventDefault()" onclick="removeSetFromExercise('${member.id}', ${exIndex}, ${setIndex})" class="text-slate-600 hover:text-rose-400 p-0.5">
                                                         <i class="fa-solid fa-xmark"></i>
                                                     </button>
                                                 </td>
@@ -3022,7 +3087,7 @@ ${phaseGroupHtml}
                         </div>
 
                         <div class="pt-0.5">
-                            <button onclick="addSetToExercise('${member.id}', ${exIndex})" class="px-2.5 py-1 bg-transparent hover:bg-slate-800 text-emerald-400 rounded-lg text-[11px] font-semibold border border-slate-500 transition">
+                            <button onpointerdown="event.preventDefault()" onclick="addSetToExercise('${member.id}', ${exIndex})" class="px-2.5 py-1 bg-transparent hover:bg-slate-800 text-emerald-400 rounded-lg text-[11px] font-semibold border border-slate-500 transition">
                                 + Thêm Set
                             </button>
                         </div>
@@ -3118,7 +3183,8 @@ ${phaseGroupHtml}
                     sets: [{ weight: '', reps: '', rir: 0 }]
                 });
                 persistData();
-                renderContent();
+                refreshMemberExercises(memberId);
+                document.querySelector('[data-exercise-index="'+(member.logs[dateStr].exercises.length-1)+'"] input[type="text"]')?.focus();
             }
         }
 
@@ -3163,20 +3229,47 @@ ${phaseGroupHtml}
                     }
 
                     persistData();
-                    renderContent();
+                    refreshMemberExercises(memberId);
                 }
             }
         }
 
         function removeExerciseFromMemberLog(memberId, exIndex) {
             const member = window.appData.members.find(m => m.id === memberId);
-            if (member) {
-                const dateStr = member.selectedDate || getTodayISODate();
-                const log = member.logs[dateStr];
-                if (log && log.exercises) {
-                    log.exercises.splice(exIndex, 1);
-                    persistData();
-                    renderContent();
+            const date = member && (member.selectedDate || getTodayISODate());
+            const log = member && member.logs[date];
+            if (!log || !log.exercises || !log.exercises[exIndex]) return;
+            const container = activeTrackMemberId === memberId ? document.getElementById('memberExercisesContainer') : null;
+            const cards = container ? Array.from(container.querySelectorAll('[data-exercise-index]')) : [];
+            const previous = cards.map(card => card.getBoundingClientRect());
+            const card = cards[exIndex];
+            const animate = card && typeof card.animate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            let ghost = null;
+            if (animate) {
+                const rect = previous[exIndex];
+                ghost = card.cloneNode(true);
+                for (const node of [ghost,...ghost.querySelectorAll('*')]) {
+                    for (const attr of Array.from(node.attributes)) {
+                        if (attr.name === 'id' || attr.name === 'data-exercise-index' || attr.name.startsWith('on')) node.removeAttribute(attr.name);
+                    }
+                }
+                ghost.setAttribute('aria-hidden','true');ghost.inert=true;
+                Object.assign(ghost.style,{position:'fixed',left:rect.left+'px',top:rect.top+'px',width:rect.width+'px',height:rect.height+'px',margin:'0',zIndex:'30',pointerEvents:'none',transformOrigin:'center top',borderColor:'#fb7185'});
+                document.body.appendChild(ghost);
+            }
+            // Lưu ngay; hiệu ứng chỉ là phản hồi thị giác, không trì hoãn thao tác xóa.
+            log.exercises.splice(exIndex,1);
+            persistData();
+            refreshMemberExercises(memberId);
+            if (ghost) {
+                const exit = ghost.animate([{opacity:0.85,transform:'translateX(0) scale(1)'},{opacity:0,transform:'translateX(14px) scale(0.97)'}],{duration:170,easing:'ease-out'});
+                exit.finished.then(()=>ghost.remove(),()=>ghost.remove());
+                for (const next of container.querySelectorAll('[data-exercise-index]')) {
+                    const index = Number(next.dataset.exerciseIndex);
+                    const old = previous[index >= exIndex ? index+1 : index];
+                    if (!old) continue;
+                    const delta = old.top-next.getBoundingClientRect().top;
+                    if (Math.abs(delta)>1) next.animate([{transform:'translateY('+delta+'px)'},{transform:'translateY(0)'}],{duration:190,easing:'cubic-bezier(.2,.8,.2,1)'});
                 }
             }
         }
@@ -3192,26 +3285,26 @@ ${phaseGroupHtml}
                     sets.push({ weight: lastSet.weight, reps: lastSet.reps, rir: 0 });
                     log.exercises[exIndex].sets = sets;
                     persistData();
-                    renderContent();
+                    refreshMemberExercises(memberId);
                 }
             }
         }
 
-        function updateSetData(memberId, exIndex, setIndex, field, val) {
+        function updateSetData(memberId, exIndex, setIndex, field, val, input = null) {
             const member = window.appData.members.find(m => m.id === memberId);
-            if (member) {
-                const dateStr = member.selectedDate || getTodayISODate();
-                const log = member.logs[dateStr];
-                if (log && log.exercises[exIndex] && log.exercises[exIndex].sets[setIndex]) {
-                    if (field === 'rir') {
-                        const n = parseFloat(val);
-                        log.exercises[exIndex].sets[setIndex].rir = isNaN(n) ? '' : Math.min(9, Math.max(0, Math.round(n)));
-                    } else {
-                        log.exercises[exIndex].sets[setIndex][field] = parseFloat(val) || '';
-                    }
-                    persistData();
-                    renderContent();
-                }
+            const date = member && (member.selectedDate || getTodayISODate());
+            const ex = member && member.logs[date]?.exercises[exIndex];
+            const set = ex && ex.sets[setIndex];
+            if (!set || !['weight','reps','rir'].includes(field)) return;
+            const number = parseFloat(val);
+            const next = field === 'rir' ? (Number.isFinite(number) ? Math.min(9,Math.max(0,Math.round(number))) : '') : (Number.isFinite(number) ? number || '' : '');
+            if (set[field] !== next) { set[field] = next; persistData(); }
+            const card = input ? input.closest('[data-exercise-index]') : (activeTrackMemberId === memberId && window.appData.activeTab === 'track' ? document.querySelector('[data-exercise-index="'+exIndex+'"]') : null);
+            const row = input ? input.closest('tr') : card?.querySelectorAll('tbody tr')[setIndex];
+            const cell = row && row.querySelector('[data-set-rm]');
+            if (cell) {
+                const rm = exerciseSet1RM(member, ex.name, date, set.weight, set.reps, set.rir);
+                cell.textContent = rm > 0 || (isBodyweightExercise(ex.name) && parseFloat(set.reps) > 0) ? rm+' kg' : '-';
             }
         }
 
@@ -3223,7 +3316,7 @@ ${phaseGroupHtml}
                 if (log && log.exercises[exIndex] && log.exercises[exIndex].sets) {
                     log.exercises[exIndex].sets.splice(setIndex, 1);
                     persistData();
-                    renderContent();
+                    refreshMemberExercises(memberId);
                 }
             }
         }
@@ -3511,7 +3604,7 @@ ${phaseGroupHtml}
                                             class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
                                         <div id="routine_pred_dropdown_${rIndex}_${exIdx}" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-40 max-h-48 overflow-y-auto"></div>
                                     </div>
-                                    <button onclick="deleteRoutineExercise(${rIndex}, ${exIdx})" class="text-slate-600 hover:text-rose-400 p-1 text-xs">
+                                    <button onpointerdown="event.preventDefault()" onclick="deleteRoutineExercise(${rIndex}, ${exIdx})" class="text-slate-600 hover:text-rose-400 p-1 text-xs">
                                         <i class="fa-solid fa-xmark"></i>
                                     </button>
                                 </div>
