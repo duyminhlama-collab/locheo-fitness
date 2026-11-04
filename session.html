@@ -100,6 +100,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             gap: 3px;
         }
         .heat-dow-label {
+            position: sticky;
+            left: 0;
+            z-index: 11;
+            background-color: #1e293b;
+            box-shadow: 3px 0 #1e293b;
             font-size: 9px;
             line-height: 1;
             color: #94a3b8;
@@ -127,10 +132,38 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             border-color: #818cf8;
             box-shadow: 0 0 8px rgba(129, 140, 248, 0.25);
         }
-        [data-exercise-index] > .entry-suggestions { display: none; }
+        [data-exercise-index] > .entry-suggestions {
+            display: grid;
+            grid-template-rows: 0fr;
+            opacity: 0;
+            visibility: hidden;
+            transition: grid-template-rows 220ms ease, opacity 160ms ease, visibility 220ms;
+        }
+        .entry-suggestions > .entry-suggestions-content { min-height: 0; overflow: hidden; }
         [data-exercise-index]:has(input[type="number"]:focus) > .entry-suggestions,
-        [data-exercise-index] > .entry-suggestions:focus-within,
-        [data-exercise-index] > .entry-suggestions:hover { display: block; }
+        [data-exercise-index].is-editing-set > .entry-suggestions,
+        [data-exercise-index] > .entry-suggestions:focus-within {
+            grid-template-rows: 1fr; opacity: 1; visibility: visible;
+        }
+        @media (hover: hover) {
+            [data-exercise-index] > .entry-suggestions:hover {
+                grid-template-rows: 1fr; opacity: 1; visibility: visible;
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            [data-exercise-index] > .entry-suggestions { transition: none; }
+        }
+        @media (max-width: 639px) {
+            #memberExercisesContainer input[type="number"] {
+                font-size: 13px;
+                line-height: 20px;
+                scroll-margin-block: 24px;
+            }
+            body:has(input:focus, textarea:focus, [contenteditable="true"]:focus) #mobileNavigationDock {
+                visibility: hidden;
+                pointer-events: none;
+            }
+        }
         @keyframes transfer-input-open {
             from { width: 0; opacity: 0; transform: translateX(-7px) scale(.96); }
             to { width: 11rem; opacity: 1; transform: translateX(0) scale(1); }
@@ -243,7 +276,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
     <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 lg:p-8" id="appContent"></main>
 
     <!-- Mobile Navigation Dock -->
-    <div class="sm:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 py-2 px-4 z-40 flex justify-around items-center">
+    <div id="mobileNavigationDock" class="sm:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 py-2 px-4 z-40 flex justify-around items-center">
         <button onclick="switchTab('overview')" class="flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400">
             <i class="fa-solid fa-chart-line text-base"></i>
             <span class="text-[10px]">Tổng Quan</span>
@@ -1208,10 +1241,22 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 m.selectedDate = todayStr;
             });
 
+            let dismissInputTap = false;
+            document.addEventListener('pointerdown', () => { dismissInputTap = false; }, true);
+            document.addEventListener('click', (e) => {
+                if (!dismissInputTap) return;
+                dismissInputTap = false;
+                e.preventDefault();
+                e.stopImmediatePropagation();
+            }, true);
             document.addEventListener('pointerdown', (e) => {
                 const input = document.activeElement;
                 if (!input || !input.matches('input, textarea')) return;
                 if (e.target.closest('input, textarea, select, button, a, label, summary, [role="button"], [data-track-drag-handle], [data-routine-drag-handle], [data-library-exercise]')) return;
+                // Consume this gesture: collapsing the hint can move another
+                // input underneath the finger before the browser sends click.
+                dismissInputTap = true;
+                e.preventDefault();
                 input.blur();
                 hideAllPredictiveDropdowns();
                 if (typeof hideAllRoutinePredictiveDropdowns === 'function') hideAllRoutinePredictiveDropdowns();
@@ -2961,6 +3006,124 @@ ${phaseGroupHtml}
         }
 
         let memberTrendFrame = null;
+        const centerViewport = window.visualViewport;
+        let centerFullHeight = centerViewport?.height || window.innerHeight;
+        let centerTask = null;
+        let centeredCard = null;
+        function cancelExerciseCenter() {
+            if (centerTask) clearTimeout(centerTask.timer);
+            centerTask = null;
+        }
+        function scheduleExerciseCenter() {
+            const task = centerTask;
+            if (!task || !centerViewport) return;
+            clearTimeout(task.timer);
+            task.timer = setTimeout(() => {
+                if (centerTask !== task || document.activeElement !== task.input) return;
+                if (centerFullHeight - centerViewport.height < 120) return;
+                centerTask = null;
+                const card = task.input.closest('[data-exercise-index]');
+                if (!card?.isConnected || centeredCard === card) return;
+                const tabs = document.querySelector('header')?.nextElementSibling;
+                const top = Math.max(centerViewport.offsetTop + 12, tabs?.getBoundingClientRect().bottom || 0);
+                const bottom = centerViewport.offsetTop + centerViewport.height - 12;
+                if (bottom - top < 80) return;
+                centeredCard = card;
+                const rect = card.getBoundingClientRect();
+                const inputRect = task.input.getBoundingClientRect();
+                let delta = (rect.top + rect.bottom - top - bottom) / 2;
+                // A tall card's center must not push the edited field below the
+                // keyboard. Keep that field inside the visible area first.
+                delta = Math.max(inputRect.bottom - bottom, Math.min(inputRect.top - top, delta));
+                if ((inputRect.top + inputRect.bottom) / 2 >= (top + bottom) / 2) {
+                    delta = Math.max(0, delta);
+                }
+                if (Math.abs(delta) > 8) window.scrollBy({top: delta,
+                    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+            }, Math.max(60, 90 - (performance.now() - task.started)));
+        }
+        document.addEventListener('pointerdown', cancelExerciseCenter, true);
+        document.addEventListener('touchmove', cancelExerciseCenter, { passive: true });
+        document.addEventListener('focusin', event => {
+            cancelExerciseCenter();
+            if (!centerViewport || !window.matchMedia('(max-width: 639px)').matches ||
+                !event.target.matches('#memberExercisesContainer input[type="number"]') ||
+                centeredCard === event.target.closest('[data-exercise-index]')) return;
+            centerTask = {input: event.target, started: performance.now(), timer: null};
+            scheduleExerciseCenter();
+        });
+        document.addEventListener('focusout', () => {
+            cancelExerciseCenter();
+            setTimeout(() => {
+                if (!document.activeElement?.matches('#memberExercisesContainer input[type="number"]')) centeredCard = null;
+            }, 0);
+        });
+        centerViewport?.addEventListener('resize', () => {
+            if (!document.activeElement?.matches('input, textarea')) centerFullHeight = Math.max(centerFullHeight, centerViewport.height);
+            scheduleExerciseCenter();
+        });
+        // Safari may pan the visual viewport after resizing it. Wait for that
+        // motion too; a completed task stays consumed and cannot scroll again.
+        centerViewport?.addEventListener('scroll', scheduleExerciseCenter);
+        window.addEventListener('orientationchange', () => {
+            cancelExerciseCenter();
+            centeredCard = null;
+            centerFullHeight = centerViewport?.height || window.innerHeight;
+        });
+        // Number inputs do not support setSelectionRange; restoring the value puts
+        // the caret at the end without replacing the input or firing a save.
+        function moveNumberCaretToEnd(input) {
+            const value = input.value;
+            input.value = '';
+            input.value = value;
+        }
+        document.addEventListener('pointerdown', event => {
+            const input = event.target;
+            if (!input.matches('#memberExercisesContainer input[type="number"]') ||
+                !window.matchMedia('(max-width: 639px)').matches || !event.isPrimary || event.button !== 0) return;
+            // Focus the actual touched input BEFORE opening the hint moves it.
+            // Do not let the later native tap hit the newly shifted row instead.
+            event.preventDefault();
+            input.focus({ preventScroll: true });
+            moveNumberCaretToEnd(input);
+        }, { capture: true });
+        document.addEventListener('focusin', event => {
+            const input = event.target;
+            if (input.matches('#memberExercisesContainer input[type="number"]')) {
+                moveNumberCaretToEnd(input);
+                input.closest('[data-exercise-index]')?.classList.add('is-editing-set');
+            }
+        });
+        document.addEventListener('focusout', event => {
+            const input = event.target;
+            if (!input.matches('#memberExercisesContainer input[type="number"]')) return;
+            const card = input.closest('[data-exercise-index]');
+            requestAnimationFrame(() => {
+                if (!card?.contains(document.activeElement)) card?.classList.remove('is-editing-set');
+            });
+        });
+        function handleSetInputKey(event, input) {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            const fields = [...input.closest('tbody').querySelectorAll('input[type="number"]')];
+            const next = fields[fields.indexOf(input) + 1];
+            if (next) next.focus({ preventScroll: true });
+            else input.blur();
+        }
+        document.addEventListener('click', event => {
+            const input = event.target;
+            if (input.matches('#memberExercisesContainer input[type="number"]')) moveNumberCaretToEnd(input);
+        });
+        document.addEventListener('beforeinput', event => {
+            const input = event.target;
+            if (!input.matches('#memberExercisesContainer input[type="number"][max="9"]') ||
+                event.isComposing || !event.cancelable || !event.inputType.startsWith('insert') || !event.data) return;
+            const digits = event.data.replace(/[^0-9]/g, '');
+            event.preventDefault();
+            if (!digits) return;
+            input.value = digits.slice(-1);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
         function finishSetEditing(memberId) {
             if (memberTrendFrame !== null) cancelAnimationFrame(memberTrendFrame);
             memberTrendFrame = requestAnimationFrame(() => {
@@ -2968,7 +3131,10 @@ ${phaseGroupHtml}
                 if (window.appData.activeTab !== 'track' || activeTrackMemberId !== memberId) return;
                 const member = window.appData.members.find(m => m.id === memberId);
                 const panel = document.getElementById('memberTrendPanel');
-                if (member && panel) panel.innerHTML = renderTrendPanel(member, member.selectedDate || getTodayISODate());
+                if (member && panel) {
+                    const html = renderTrendPanel(member, member.selectedDate || getTodayISODate());
+                    if (panel.innerHTML !== html) panel.innerHTML = html;
+                }
             });
         }
 
@@ -3097,14 +3263,14 @@ ${phaseGroupHtml}
                         <div class="flex justify-between items-center gap-2 border-b border-slate-700 pb-2">
                             <button type="button" data-track-drag-handle title="Kéo để đổi thứ tự bài tập" aria-label="Kéo bài tập ${exIndex + 1}" onpointerdown="event.stopPropagation(); startExerciseReorder(event, '${member.id}', ${exIndex})" oncontextmenu="event.preventDefault()" style="touch-action: none; -webkit-touch-callout: none;" class="shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-emerald-400 bg-slate-900 px-2 py-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"><svg width="12" height="20" viewBox="0 0 24 36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="pointer-events-none"><path d="M12 14V3m-5 5 5-5 5 5M3 18h18M12 22v11m-5-5 5 5 5-5"/></svg></button>
                             <div class="flex flex-1 min-w-0 items-center gap-1.5">
-                            ${ex.transferFrom ? `<div class="flex-1 min-w-0 max-w-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-300" title="Bài trước khi transfer">${escapeTextValue(ex.transferFrom)}</div>` : `
+                            ${ex.transferFrom ? `<div class="flex-1 min-w-0 max-w-xs bg-slate-900 border border-slate-500 rounded-lg px-2.5 py-1 text-sm font-extrabold text-white" title="Bài trước khi transfer">${escapeTextValue(ex.transferFrom)}</div>` : `
                             <div class="flex-1 min-w-0 max-w-xs relative predictive-input-container">
                                 <input type="text" value="${String(ex.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" placeholder="Nhập tên bài tập..." autocomplete="off"
                                     onfocus="showPredictiveDropdown(this, '${member.id}', ${exIndex})"
                                     oninput="handlePredictiveInput(this, '${member.id}', ${exIndex})"
                                     onchange="commitExerciseNameInput(this, '${member.id}', ${exIndex})"
                                     onkeydown="if(event.key==='Enter' &amp;&amp; !event.isComposing){event.preventDefault(); commitExerciseNameInput(this, '${member.id}', ${exIndex}, true)}" title="Chọn tên trong gợi ý; tên mới nhấn Enter để lưu"
-                                    class="w-full max-w-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold focus:outline-none focus:border-emerald-500">
+                                    class="w-full max-w-xs bg-slate-900 border border-slate-500 rounded-lg px-2.5 py-1 text-sm text-white font-extrabold focus:outline-none focus:border-emerald-500">
                                 <div id="pred_dropdown_${exIndex}" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto"></div>
                             </div>`}
 
@@ -3115,13 +3281,13 @@ ${phaseGroupHtml}
                             </button>
                         </div>
 
-                        ${sugHtml ? `<div class="entry-suggestions space-y-1">${sugHtml}</div>` : ''}
+                        ${sugHtml ? `<div class="entry-suggestions"><div class="entry-suggestions-content space-y-1">${sugHtml}</div></div>` : ''}
 
                         <!-- Table các Sets -->
                         <div class="overflow-x-auto">
                             <table class="w-full table-fixed text-left text-xs">
                                 <thead>
-                                    <tr class="text-[10px] text-slate-400 uppercase border-b border-slate-700">
+                                    <tr class="text-xs text-slate-400 uppercase border-b border-slate-700">
                                         <th class="pb-1 w-7 font-semibold">SET</th>
                                         <th class="pb-1 font-semibold">${isBodyweightExercise(ex.name) ? 'TẠ THÊM (KG)' : 'TẠ (KG)'}</th>
                                         <th class="pb-1 font-semibold">REPS</th>
@@ -3138,13 +3304,13 @@ ${phaseGroupHtml}
                                             <tr>
                                                 <td class="py-1.5 font-mono font-bold text-slate-400">${setIndex + 1}</td>
                                                 <td class="py-1.5 pr-1.5">
-                                                    <input data-weight-input type="number" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                                                    <input data-weight-input type="number" inputmode="decimal" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
                                                 </td>
                                                 <td class="py-1.5 pr-1.5">
-                                                    <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                                                    <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
                                                 </td>
                                                 <td class="py-1.5 pr-1.5">
-                                                    <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1); updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onblur="finishSetEditing('${member.id}')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none focus:border-amber-500">
+                                                    <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1); updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none focus:border-amber-500">
                                                 </td>
                                                 <td data-set-rm class="py-1.5 font-mono text-emerald-400 text-[10px] font-semibold whitespace-nowrap">
                                                     ${estRM > 0 || (isBodyweightExercise(ex.name) && parseFloat(s.reps) > 0) ? estRM + ' kg' : '-'}
