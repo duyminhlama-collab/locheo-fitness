@@ -1,6 +1,6 @@
-/* Generated release: 58e4eb25259403d6. Rebuild with python tools/build-offline.py. */
+/* Generated release: 2af952be1488b4ca. Rebuild with python tools/build-offline.py. */
 'use strict';
-const CACHE_NAME = 'locheofitness-shell-58e4eb25259403d6';
+const CACHE_NAME = 'locheofitness-shell-2af952be1488b4ca';
 const CORE = ["./session.html", "./index.html", "./manifest.webmanifest", "./assets/app.css", "./assets/icons/app-icon.png", "./assets/offline-storage.js", "./assets/track-wheel.css", "./assets/track-wheel.js", "./assets/vendor/chart-4.4.8.umd.js", "./assets/vendor/fontawesome/css/all.min.css", "./assets/vendor/fontawesome/webfonts/fa-brands-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-regular-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-solid-900.woff2", "./assets/vendor/fontawesome/webfonts/fa-v4compatibility.woff2", "./assets/vendor/THIRD_PARTY_NOTICES.txt"];
 const root = new URL('./', self.location.href);
 const absolute = path => new URL(path, root).href;
@@ -23,6 +23,12 @@ self.addEventListener('install', event => {
                 try {
                     const response = await fetch(new Request(absolute(path), {cache:'reload',signal:controller.signal}));
                     if (!response.ok || response.type==='opaque') throw new Error('Offline asset unavailable: '+path);
+                    const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+                    // Pages may return an HTML fallback with HTTP 200 for missing assets.
+                    if ((path.endsWith('.css') && contentType !== 'text/css') ||
+                        (path.endsWith('.js') && !/^(?:application|text)\/(?:javascript|ecmascript|x-javascript)$/.test(contentType))) {
+                        throw new Error('Unexpected offline asset type: '+path+' ('+contentType+')');
+                    }
                     await cache.put(absolute(path), await safeResponse(response));
                 } finally { clearTimeout(timer); }
             }));
