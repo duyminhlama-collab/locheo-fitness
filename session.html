@@ -44,6 +44,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
     <!-- Tailwind CSS CDN -->
     <link rel="stylesheet" href="./assets/app.css">
+    <link rel="stylesheet" href="./assets/track-wheel.css">
+    <script defer src="./assets/track-wheel.js"></script>
     <link rel="stylesheet" href="./assets/vendor/fontawesome/css/all.min.css">
     <script defer src="./assets/offline-storage.js"></script>
     <script defer src="./assets/vendor/chart-4.4.8.umd.js"></script>
@@ -242,9 +244,12 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     <i class="fa-solid fa-cloud text-sm"></i>
                     <span class="hidden sm:inline">Mã Nhóm</span>
                 </button>
-                <button onclick="openRoutineModal()" title="Mẫu buổi tập & Lịch tuần" class="p-2 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-indigo-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                <button onclick="switchTab('schedule')" title="Mẫu buổi tập & Lịch tuần" class="hidden sm:flex p-2 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-indigo-500/30 rounded-xl text-xs font-semibold items-center gap-1.5 transition">
                     <i class="fa-solid fa-calendar-days text-sm"></i>
                     <span class="hidden sm:inline">Lịch Tập</span>
+                </button>
+                <button type="button" onclick="openAddMemberModal()" aria-label="Thêm người" title="Thêm người" class="sm:hidden h-[30px] w-[30px] shrink-0 inline-flex items-center justify-center p-0 bg-emerald-600 border border-emerald-500/30 text-white rounded-xl">
+                    <i class="fa-solid fa-user-plus fa-fw text-xs" aria-hidden="true"></i>
                 </button>
                 <button id="pwaInstallBtn" onclick="triggerPwaInstall()" title="Cài ứng dụng" class="hidden p-2 sm:px-3 sm:py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-900/30">
                     <i class="fa-solid fa-download text-sm"></i>
@@ -258,11 +263,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
     </header>
 
     <!-- Navigation Tabs Bar -->
-    <div class="bg-slate-900/90 backdrop-blur-md border-b border-cardborder sticky top-[53px] z-40">
+    <div class="hidden sm:block bg-slate-900/90 backdrop-blur-md border-b border-cardborder sticky top-[53px] z-40">
         <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-between overflow-x-auto no-scrollbar py-2">
             <div class="flex items-center space-x-2" id="tabsContainer"></div>
             <div class="flex items-center gap-1.5 shrink-0 ml-2">
-                <button onclick="openExerciseLibraryModal()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-semibold flex items-center gap-1 transition">
+                <button onclick="switchTab('library')" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-semibold flex items-center gap-1 transition">
                     <i class="fa-solid fa-book-bookmark text-amber-400"></i> <span class="hidden md:inline">Kho Bài Tập</span>
                 </button>
                 <button onclick="openAddMemberModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1 transition shadow-lg shadow-emerald-900/30">
@@ -277,19 +282,19 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
     <!-- Mobile Navigation Dock -->
     <div id="mobileNavigationDock" class="sm:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 py-2 px-4 z-40 flex justify-around items-center">
-        <button onclick="switchTab('overview')" class="flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400">
+        <button data-page="overview" onclick="switchTab('overview')" class="flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400">
             <i class="fa-solid fa-chart-line text-base"></i>
             <span class="text-[10px]">Tổng Quan</span>
         </button>
-        <button onclick="switchTab('track')" class="flex flex-col items-center gap-1 text-slate-400 hover:text-cyan-400">
+        <button data-page="track" onclick="switchTab('track')" class="flex flex-col items-center gap-1 text-slate-400 hover:text-cyan-400">
             <i class="fa-solid fa-dumbbell text-base"></i>
             <span class="text-[10px]">Track Tạ</span>
         </button>
-        <button onclick="openExerciseLibraryModal()" class="flex flex-col items-center gap-1 text-slate-400 hover:text-amber-400">
+        <button data-page="library" onclick="switchTab('library')" class="flex flex-col items-center gap-1 text-slate-400 hover:text-amber-400">
             <i class="fa-solid fa-book-bookmark text-base"></i>
             <span class="text-[10px]">Kho Bài</span>
         </button>
-        <button onclick="openRoutineModal()" class="flex flex-col items-center gap-1 text-slate-400 hover:text-indigo-400">
+        <button data-page="schedule" onclick="switchTab('schedule')" class="flex flex-col items-center gap-1 text-slate-400 hover:text-indigo-400">
             <i class="fa-solid fa-calendar-days text-base"></i>
             <span class="text-[10px]">Lịch Tập</span>
         </button>
@@ -378,19 +383,16 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         </div>
     </div>
 
-    <!-- Modal 4: Routines & Schedule Management -->
-    <div id="routineModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4 overflow-y-auto">
-        <div class="bg-cardbg border border-cardborder rounded-2xl max-w-3xl w-full p-5 shadow-2xl relative my-auto max-h-[90vh] flex flex-col">
+    <!-- Trang Lịch tập -->
+    <div id="schedulePage" class="management-page hidden">
+        <div class="bg-cardbg border border-cardborder rounded-2xl w-full p-3 sm:p-5">
             <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
                 <h3 class="text-base font-bold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-calendar-days text-indigo-400"></i> Quản Lý Mẫu Buổi Tập & Lịch Theo Tuần
+                    <i class="fa-solid fa-calendar-days text-indigo-400"></i> Lịch tập
                 </h3>
-                <button onclick="closeRoutineModal()" class="text-slate-400 hover:text-white p-1">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
             </div>
 
-            <div class="overflow-y-auto space-y-6 flex-1 pr-1">
+            <div class="space-y-6">
                 <!-- Section 1: Weekly Schedule -->
                 <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3.5">
                     <h4 class="text-xs font-bold text-indigo-300 uppercase mb-1.5 flex items-center gap-2">
@@ -414,10 +416,6 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     <div id="routinesListContainer" class="space-y-3"></div>
                 </div>
             </div>
-
-            <div class="flex justify-end gap-2 pt-4 border-t border-slate-800 mt-4">
-                <button onclick="closeRoutineModal()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold">Hoàn Tất</button>
-            </div>
         </div>
     </div>
 
@@ -437,21 +435,18 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         </div>
     </div>
 
-    <!-- Modal 6: Exercise Library Modal -->
-    <div id="exerciseLibraryModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4 overflow-y-auto">
-        <div class="bg-cardbg border border-cardborder rounded-2xl max-w-2xl w-full p-5 shadow-2xl relative my-auto max-h-[90vh] flex flex-col">
+    <!-- Trang Kho bài -->
+    <div id="libraryPage" class="management-page hidden">
+        <div class="bg-cardbg border border-cardborder rounded-2xl w-full p-3 sm:p-5">
             <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
                 <h3 class="text-base font-bold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-book-bookmark text-amber-400"></i> Kho Bài Tập & Nhóm Cơ (Exercise Library)
+                    <i class="fa-solid fa-book-bookmark text-amber-400"></i> Kho bài tập
                 </h3>
-                <button onclick="closeExerciseLibraryModal()" class="text-slate-400 hover:text-white p-1">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
             </div>
 
-            <div class="space-y-4 overflow-y-auto flex-1 pr-1">
+            <div class="space-y-4">
                 <div class="bg-slate-900/80 p-3.5 border border-slate-800 rounded-xl space-y-3">
-                    <h4 class="text-xs font-bold text-amber-300 uppercase">Thêm Bài Tập Mới Vào Kho</h4>
+                    <h4 class="text-xs font-bold text-amber-300 uppercase">Thêm bài tập Vào Kho</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(170px,0.52fr)] gap-2">
                         <input type="text" id="libNewExName" placeholder="Tên bài (VD: Bulgarian Split Squat)" class="min-w-0 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
                         <select id="libNewExCategory" class="min-w-0 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-medium focus:outline-none">
@@ -478,10 +473,6 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 </div>
 
                 <div id="exerciseLibraryList" class="space-y-3"></div>
-            </div>
-
-            <div class="flex justify-end pt-3 border-t border-slate-800 mt-4">
-                <button onclick="closeExerciseLibraryModal()" class="px-5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold">Đóng</button>
             </div>
         </div>
     </div>
@@ -975,7 +966,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         window.currentGroupCode = '';
         let deferredPwaPrompt = null;
         let overviewSelectedExercise = "Bench Press";
-        let overviewExerciseOptions = [];
+        let overviewExerciseOptions = [], overviewExerciseMatches = [];
         const TRACK_MEMBER_KEY = 'gym_group_tracker_last_track_member';
         let activeTrackMemberId = null;
         let chart1RMInstance = null;
@@ -1225,11 +1216,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 saveLocalDataOnly();
             }
 
-            // Navigation mới: chỉ có Tổng quan và Track tạ; giữ lại thành viên đã chọn nếu có.
+            // Chuyển dữ liệu cũ từng lưu ID thành viên làm tab.
             const validMemberIds = (window.appData.members || []).map(m => m.id);
             const savedTrackMember = appStorage.getItem(TRACK_MEMBER_KEY);
             if (validMemberIds.includes(savedTrackMember)) activeTrackMemberId = savedTrackMember;
-            if (window.appData.activeTab && !['overview', 'track'].includes(window.appData.activeTab)) {
+            if (window.appData.activeTab && !['overview', 'track', 'library', 'schedule'].includes(window.appData.activeTab)) {
                 activeTrackMemberId = window.appData.activeTab;
                 window.appData.activeTab = 'track';
             }
@@ -1379,6 +1370,9 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             if (!tabsContainer) return;
             const isOverviewActive = window.appData.activeTab === 'overview';
             const isTrackActive = window.appData.activeTab === 'track';
+            for (const button of document.querySelectorAll('#mobileNavigationDock [data-page]')) {
+                button.setAttribute('aria-current', button.dataset.page === window.appData.activeTab ? 'page' : 'false');
+            }
             tabsContainer.innerHTML = `
                 <button onclick="switchTab('overview')" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 shrink-0 ${isOverviewActive ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-900/40' : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/60'}">
                     <i class="fa-solid fa-chart-line ${isOverviewActive ? 'text-white' : 'text-emerald-400'}"></i><span>TỔNG QUAN</span>
@@ -1389,25 +1383,18 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         };
 
         // ========== SECTION 08: ĐIỀU HƯỚNG + CHỌN THÀNH VIÊN / NGÀY ========== 
+        let tabSaveTimer;
         function switchTab(tabId) {
-            window.appData.activeTab = (tabId === 'overview') ? 'overview' : 'track';
-            if (tabId !== 'overview' && tabId !== 'track') activeTrackMemberId = tabId;
+            const isPage = ['overview', 'track', 'library', 'schedule'].includes(tabId);
+            window.appData.activeTab = isPage ? tabId : 'track';
+            if (!isPage) activeTrackMemberId = tabId;
             const ids = (window.appData.members || []).map(m => m.id);
             if (!activeTrackMemberId || !ids.includes(activeTrackMemberId)) activeTrackMemberId = ids[0] || null;
-            persistData();
+
             renderTabs();
             renderContent();
-            if (tabId === 'track') {
-                requestAnimationFrame(() => {
-                    if (window.appData.activeTab !== 'track') return;
-                    const profile = document.getElementById('memberProfileHeader');
-                    if (!profile) return;
-                    const tabs = document.getElementById('tabsContainer');
-                    const header = document.querySelector('header');
-                    const offset = Math.max(tabs ? tabs.getBoundingClientRect().bottom : 0, header ? header.getBoundingClientRect().bottom : 0) + 12;
-                    window.scrollTo({ top: Math.max(0, window.scrollY + profile.getBoundingClientRect().top - offset), behavior: 'instant' });
-                });
-            }
+            clearTimeout(tabSaveTimer);
+            tabSaveTimer = setTimeout(saveLocalDataOnly, 150);
         }
 
         function selectTrackMember(memberId) {
@@ -1430,7 +1417,22 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         window.renderContent = function() {
             const container = document.getElementById('appContent');
             if (!container) return;
-            if (window.appData.activeTab === 'overview') {
+            const page = window.appData.activeTab;
+            const isLibrary = page === 'library';
+            const isSchedule = page === 'schedule';
+            container.classList.toggle('hidden', isLibrary || isSchedule);
+            document.getElementById('libraryPage').classList.toggle('hidden', !isLibrary);
+            document.getElementById('schedulePage').classList.toggle('hidden', !isSchedule);
+            if (isLibrary || isSchedule) {
+                container.replaceChildren();
+                if (isLibrary) renderExerciseLibraryModalList();
+                else {
+                    renderWeeklyScheduleInputs();
+                    renderRoutinesList();
+                }
+                return;
+            }
+            if (page === 'overview') {
                 renderOverviewTab(container);
                 return;
             }
@@ -1443,7 +1445,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const member = members.find(m => m.id === activeTrackMemberId);
             if (appStorage.getItem(TRACK_MEMBER_KEY) !== member.id) appStorage.setItem(TRACK_MEMBER_KEY, member.id);
             const color = MEMBER_COLORS[member.colorIndex % MEMBER_COLORS.length].solid;
-            const selector = `<div class="bg-cardbg border border-cardborder rounded-xl p-2 sm:p-2.5 mb-3 shadow-lg flex flex-wrap items-center gap-2"><div class="w-7 h-7 rounded-lg flex items-center justify-center bg-cyan-500/10 border border-cyan-500/30 text-cyan-300"><i class="fa-solid fa-users text-sm"></i></div><div class="flex-1 min-w-[130px]"><div class="text-[11px] uppercase tracking-wide text-slate-500 font-bold mb-0.5">Track tạ của thành viên</div><div class="text-xs text-slate-400">Chọn người để xem hoặc nhập nhật ký</div></div><div class="flex items-center gap-2 w-full sm:w-auto"><div class="relative flex-1 sm:w-64"><select style="color: ${color}; border-color: ${color};" aria-label="Chọn thành viên track tạ" onchange="selectTrackMember(this.value)" class="w-full appearance-none bg-slate-900 border border-cyan-500/40 hover:border-cyan-400 focus:border-cyan-300 rounded-xl pl-2.5 pr-7 py-1.5 text-sm font-bold text-white outline-none shadow-inner">${members.map(m => `<option value="${m.id}" ${m.id === member.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select><i style="color: ${color};" class="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400 text-xs"></i></div><button type="button" title="Đổi tên thành viên" aria-label="Đổi tên thành viên" onclick="openEditMemberModal('${member.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 rounded-lg transition"><i class="fa-solid fa-user-pen text-sm"></i></button><button type="button" title="Xóa thành viên" aria-label="Xóa thành viên" onclick="deleteMember('${member.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center bg-rose-950/80 border border-rose-800/60 hover:bg-rose-900 text-rose-400 rounded-lg transition"><i class="fa-solid fa-trash-can text-sm"></i></button></div></div>`;
+            const selector = `<div id="trackMemberSelector" class="bg-cardbg border border-cardborder rounded-xl p-2 sm:p-2.5 mb-3 shadow-lg flex flex-wrap items-center gap-2"><div class="w-7 h-7 rounded-lg flex items-center justify-center bg-cyan-500/10 border border-cyan-500/30 text-cyan-300"><i class="fa-solid fa-users text-sm"></i></div><div class="flex-1 min-w-[130px]"><div class="text-[11px] uppercase tracking-wide text-sky-300 font-bold mb-0.5">Track tạ của thành viên</div></div><div class="flex items-center gap-2 w-full sm:w-auto"><div class="relative flex-1 sm:w-64"><select style="color: ${color}; border-color: ${color};" aria-label="Chọn thành viên track tạ" onchange="selectTrackMember(this.value)" class="w-full appearance-none bg-slate-900 border border-cyan-500/40 hover:border-cyan-400 focus:border-cyan-300 rounded-xl pl-2.5 pr-7 py-1.5 text-sm font-bold text-white outline-none shadow-inner">${members.map(m => `<option value="${m.id}" ${m.id === member.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select><i style="color: ${color};" class="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400 text-xs"></i></div><button type="button" title="Đổi tên thành viên" aria-label="Đổi tên thành viên" onclick="openEditMemberModal('${member.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 rounded-lg transition"><i class="fa-solid fa-user-pen text-sm"></i></button><button type="button" title="Xóa thành viên" aria-label="Xóa thành viên" onclick="deleteMember('${member.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center bg-rose-950/80 border border-rose-800/60 hover:bg-rose-900 text-rose-400 rounded-lg transition"><i class="fa-solid fa-trash-can text-sm"></i></button></div></div>`;
             container.innerHTML = selector + '<div id="trackMemberContent"></div>';
             renderMemberTab(document.getElementById('trackMemberContent'), member);
         };
@@ -1471,11 +1473,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
             const allExercises = Array.from(exerciseMap.values()).sort();
             if (allExercises.length === 0) allExercises.push("Bench Press");
+            overviewExerciseOptions = allExercises;
 
             if (!allExercises.includes(overviewSelectedExercise)) {
                 overviewSelectedExercise = allExercises[0];
             }
-            overviewExerciseOptions = allExercises;
 
             container.innerHTML = `
                 <div class="space-y-5">
@@ -1488,16 +1490,13 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         </div>
                         
                         <div class="w-full sm:w-auto sm:min-w-[270px]">
-                            <label for="overviewExerciseInput" class="text-[10px] uppercase tracking-widest font-extrabold text-emerald-300 mb-1.5 flex items-center gap-2"><i class="fa-solid fa-sliders"></i> Gõ tên bài tập để xem biểu đồ</label>
+                            <label for="overviewExerciseInput" class="block mb-1.5 text-xs font-bold text-emerald-300">Chọn bài tập</label>
                             <div class="relative predictive-input-container">
-                                <input id="overviewExerciseInput" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" value="${escapeAttrValue(overviewSelectedExercise)}" placeholder="Gõ tên bài tập..."
-                                    onfocus="this.select(); filterOverviewExercises('')"
-                                    oninput="filterOverviewExercises(this.value)"
-                                    onkeydown="overviewExerciseKey(event)"
-                                    onblur="commitOverviewExerciseInput(this)"
-                                    class="w-full bg-gradient-to-r from-slate-900 to-slate-800 border border-emerald-500/40 hover:border-emerald-400 focus:border-emerald-300 rounded-xl pl-3 pr-10 py-3 text-sm text-white font-bold shadow-inner outline-none transition">
-                                <i class="fa-solid fa-magnifying-glass pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400 text-xs"></i>
-                                <div id="pred_dropdown_overview" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto"></div>
+                                <input id="overviewExerciseInput" type="search" autocomplete="off" spellcheck="false" value="${escapeAttrValue(overviewSelectedExercise)}" placeholder="Gõ tên bài tập"
+                                    onfocus="this.select(); filterOverviewExercises('')" oninput="filterOverviewExercises(this.value)" onkeydown="overviewExerciseKey(event)"
+                                    onblur="this.value = overviewSelectedExercise; hideAllPredictiveDropdowns()"
+                                    class="w-full bg-slate-900 border border-emerald-500/50 rounded-xl px-3 py-2.5 text-base font-bold text-white focus:outline-none focus:border-emerald-300">
+                                <div id="pred_dropdown_overview" class="hidden absolute top-full inset-x-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto"></div>
                             </div>
                         </div>
                     </div>
@@ -1506,7 +1505,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         <div class="bg-cardbg border border-cardborder rounded-2xl p-4 shadow-lg">
                             <div class="flex justify-between items-center mb-2">
                                 <h3 class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
-                                    <i class="fa-solid fa-chart-line text-emerald-400"></i> Tiến Trình 1RM (kg) - <span id="overviewExTitle">${overviewSelectedExercise}</span>
+                                    <i class="fa-solid fa-chart-line text-emerald-400"></i> Tiến Trình 1RM (kg) - <span id="overviewExTitle">${escapeTextValue(overviewSelectedExercise)}</span>
                                 </h3>
                                 <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono" title="Trung bình Epley, Brzycki và Lander">e1RM TB</span>
                             </div>
@@ -1764,64 +1763,43 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
-        // Ô gõ tên bài tập ở Tổng quan: gợi ý theo chữ đang gõ, chọn bằng bấm hoặc Enter
-        let overviewExerciseFiltered = [];
-
         function filterOverviewExercises(query) {
             const dropdown = document.getElementById('pred_dropdown_overview');
             if (!dropdown) return;
-            const q = (query || '').toLowerCase().trim();
-            overviewExerciseFiltered = overviewExerciseOptions.filter(n => n.toLowerCase().includes(q));
-            if (overviewExerciseFiltered.length === 0) {
-                dropdown.innerHTML = '<div class="px-3 py-2 text-xs text-slate-500">Không tìm thấy bài tập</div>';
-            } else {
-                dropdown.innerHTML = overviewExerciseFiltered.map((n, i) => `
-                    <div onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="pickOverviewExercise(${i})" class="px-3 py-2 hover:bg-slate-800 text-xs font-bold cursor-pointer border-b border-slate-800/40 last:border-0 ${n === overviewSelectedExercise ? 'text-emerald-300' : 'text-slate-200'}">${escapeTextValue(n)}</div>
-                `).join('');
-            }
+            const term = query.trim().toLowerCase();
+            overviewExerciseMatches = overviewExerciseOptions.filter(name => name.toLowerCase().includes(term));
+            const library = new Map((window.appData.exerciseLibrary || []).map(exercise =>
+                [capitalizeExerciseName(exercise.name).toLowerCase(), exercise]));
+            dropdown.innerHTML = overviewExerciseMatches.length
+                ? overviewExerciseMatches.map((name, index) => {
+                    const exercise = library.get(name.toLowerCase()) || {name};
+                    const category = EXERCISE_CATEGORIES[resolvedExerciseCategory(exercise)];
+                    return `<button type="button" onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="pickOverviewExercise(${index})" class="w-full flex items-center justify-between gap-2 text-left px-3 py-2 text-xs border-b border-slate-800/40 last:border-0 hover:bg-slate-800">
+                        <span class="font-bold text-slate-200">${escapeTextValue(name)}</span>
+                        <span class="shrink-0 text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">${escapeTextValue(category)}</span>
+                    </button>`;
+                }).join('')
+                : '<p class="px-3 py-2 text-sm text-slate-400">Không tìm thấy bài tập</p>';
             dropdown.classList.remove('hidden');
         }
 
-        function findOverviewExerciseMatch(text, allowFirstPartial) {
-            const typed = capitalizeExerciseName(text).toLowerCase();
-            if (!typed) return null;
-            const exact = overviewExerciseOptions.find(n => n.toLowerCase() === typed);
-            if (exact) return exact;
-            const partial = overviewExerciseOptions.filter(n => n.toLowerCase().includes(typed));
-            if (partial.length === 1) return partial[0];
-            return (allowFirstPartial && partial.length > 0) ? partial[0] : null;
-        }
-
         function pickOverviewExercise(index) {
-            const name = overviewExerciseFiltered[index];
+            const name = overviewExerciseMatches[index];
             if (!name) return;
-            const input = document.getElementById('overviewExerciseInput');
-            if (input) input.value = name;
-            hideAllPredictiveDropdowns();
             if (name !== overviewSelectedExercise) changeOverviewExercise(name);
-            if (input) input.blur();
-        }
-
-        function commitOverviewExerciseInput(inputEl) {
-            const match = findOverviewExerciseMatch(inputEl.value, false);
-            if (match) {
-                inputEl.value = match;
-                if (match !== overviewSelectedExercise) changeOverviewExercise(match);
-            } else {
-                inputEl.value = overviewSelectedExercise;
-            }
+            const input = document.getElementById('overviewExerciseInput');
+            input.value = name;
+            input.blur();
             hideAllPredictiveDropdowns();
         }
 
-        function overviewExerciseKey(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const match = findOverviewExerciseMatch(e.target.value, true);
-                if (match) e.target.value = match;
-                e.target.blur();
-            } else if (e.key === 'Escape') {
-                e.target.value = overviewSelectedExercise;
-                e.target.blur();
+        function overviewExerciseKey(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const exact = overviewExerciseMatches.findIndex(name => name.toLowerCase() === event.target.value.trim().toLowerCase());
+                pickOverviewExercise(exact >= 0 ? exact : 0);
+            } else if (event.key === 'Escape') {
+                event.target.blur();
             }
         }
 
@@ -2043,32 +2021,14 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             container.innerHTML = `
                 <div class="space-y-5">
                     <!-- Top Bar Thành Viên -->
-                    <div id="memberProfileHeader" class="bg-cardbg border border-cardborder rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 sm:gap-3 shadow-xl">
-                        <div class="flex items-center gap-2 sm:gap-3">
-                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center font-bold text-slate-950 text-sm sm:text-base shadow" style="background-color: ${colorObj.solid}">
-                                ${member.name.charAt(0)}
-                            </div>
-                            <div>
-                                <h2 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                                    ${member.name}
-                                </h2>
-                                <p class="text-[10px] sm:text-xs text-slate-400">Nhật ký tập luyện cá nhân</p>
-                            </div>
+                    <div id="memberProfileHeader" class="track-profile">
+                        <div class="track-profile-left">
+                            <h2>${escapeTextValue(member.name)}</h2>
+                            <label class="track-bodyweight" title="${bwCarryTip}"><i class="fa-solid fa-weight-scale"></i> <input type="number" step="0.1" value="${currentLog.bodyWeight || (bwCarry ? bwCarry.value : '')}" placeholder="70" title="${bwCarryTip}" onchange="updateMemberBodyWeight('${member.id}', this.value)" class="w-12 sm:w-16 bg-transparent text-[11px] sm:text-xs font-bold ${bwInherited ? 'text-amber-300/80' : 'text-amber-300'} placeholder:text-amber-300/60 focus:outline-none text-right"> <span>kg</span></label>
                         </div>
-
-                        <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
-                            <div class="flex items-center gap-1 sm:gap-1.5 bg-slate-900 border border-slate-700 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl">
-                                <i class="fa-solid fa-weight-scale text-amber-400 text-[11px] sm:text-xs"></i>
-                                <span class="text-[11px] sm:text-xs font-medium text-slate-300">Cân nặng:</span>
-                                <input type="number" step="0.1" value="${currentLog.bodyWeight || (bwCarry ? bwCarry.value : '')}" placeholder="70" title="${bwCarryTip}" onchange="updateMemberBodyWeight('${member.id}', this.value)" class="w-12 sm:w-16 bg-transparent text-[11px] sm:text-xs font-bold ${bwInherited ? 'text-amber-300/80' : 'text-amber-300'} placeholder:text-amber-300/60 focus:outline-none text-right">
-                                <span class="text-[11px] sm:text-xs text-slate-400">kg</span>
-                                ${bwInherited ? `<span class="text-[10px] text-slate-500" title="${bwCarryTip}">giữ từ ${loadFmtDate(bwCarry.date)}</span>` : ''}
-                            </div>
-${phaseGroupHtml}
-                            <div class="flex items-center gap-1 sm:gap-1.5 bg-slate-900 border border-slate-700 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl">
-                                <i class="fa-solid fa-calendar text-emerald-400 text-[11px] sm:text-xs"></i>
-                                <input type="date" value="${dateStr}" onchange="changeMemberDate('${member.id}', this.value)" class="bg-transparent text-[11px] sm:text-xs text-emerald-300 font-semibold focus:outline-none">
-                            </div>
+                        <div class="track-profile-right">
+                            ${phaseGroupHtml}
+                            <label class="track-date"><i class="fa-solid fa-calendar"></i> <input type="date" value="${dateStr}" onchange="changeMemberDate('${member.id}', this.value)" class="bg-transparent text-[11px] sm:text-xs text-emerald-300 font-semibold focus:outline-none"></label>
                         </div>
                     </div>
 
@@ -2082,14 +2042,14 @@ ${phaseGroupHtml}
                     </div>
 
                     <!-- Nút thêm bài tập & Nạp Routine -->
-                    <div class="flex flex-wrap gap-2 pt-2">
+                    <div id="trackBottomActions" class="flex flex-wrap gap-2 pt-2">
                         <button onclick="addExerciseToMemberLog('${member.id}')" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-900/30">
-                            <i class="fa-solid fa-plus"></i> Thêm Bài Tập Mới
+                            <i class="fa-solid fa-plus"></i> Thêm bài tập
                         </button>
                         
                         <div class="relative group">
                             <select onchange="applyRoutineToMember('${member.id}', this.value); this.value='';" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/40 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer">
-                                <option value="">+ Nạp Mẫu Routine...</option>
+                                <option value="">+ Nạp mẫu</option>
                                 ${(window.appData.routines || []).map(r => `<option value="${r.id}">${r.name}</option>`).join('')}
                             </select>
                         </div>
@@ -3006,102 +2966,6 @@ ${phaseGroupHtml}
         }
 
         let memberTrendFrame = null;
-        const centerViewport = window.visualViewport;
-        let centerFullHeight = centerViewport?.height || window.innerHeight;
-        let centerTask = null;
-        let centeredCard = null;
-        function cancelExerciseCenter() {
-            if (centerTask) clearTimeout(centerTask.timer);
-            centerTask = null;
-        }
-        function scheduleExerciseCenter() {
-            const task = centerTask;
-            if (!task || !centerViewport) return;
-            clearTimeout(task.timer);
-            task.timer = setTimeout(() => {
-                if (centerTask !== task || document.activeElement !== task.input) return;
-                if (centerFullHeight - centerViewport.height < 120) return;
-                centerTask = null;
-                const card = task.input.closest('[data-exercise-index]');
-                if (!card?.isConnected || centeredCard === card) return;
-                const tabs = document.querySelector('header')?.nextElementSibling;
-                const top = Math.max(centerViewport.offsetTop + 12, tabs?.getBoundingClientRect().bottom || 0);
-                const bottom = centerViewport.offsetTop + centerViewport.height - 12;
-                if (bottom - top < 80) return;
-                centeredCard = card;
-                const rect = card.getBoundingClientRect();
-                const inputRect = task.input.getBoundingClientRect();
-                let delta = (rect.top + rect.bottom - top - bottom) / 2;
-                // A tall card's center must not push the edited field below the
-                // keyboard. Keep that field inside the visible area first.
-                delta = Math.max(inputRect.bottom - bottom, Math.min(inputRect.top - top, delta));
-                if ((inputRect.top + inputRect.bottom) / 2 >= (top + bottom) / 2) {
-                    delta = Math.max(0, delta);
-                }
-                if (Math.abs(delta) > 8) window.scrollBy({top: delta,
-                    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
-            }, Math.max(60, 90 - (performance.now() - task.started)));
-        }
-        document.addEventListener('pointerdown', cancelExerciseCenter, true);
-        document.addEventListener('touchmove', cancelExerciseCenter, { passive: true });
-        document.addEventListener('focusin', event => {
-            cancelExerciseCenter();
-            if (!centerViewport || !window.matchMedia('(max-width: 639px)').matches ||
-                !event.target.matches('#memberExercisesContainer input[type="number"]') ||
-                centeredCard === event.target.closest('[data-exercise-index]')) return;
-            centerTask = {input: event.target, started: performance.now(), timer: null};
-            scheduleExerciseCenter();
-        });
-        document.addEventListener('focusout', () => {
-            cancelExerciseCenter();
-            setTimeout(() => {
-                if (!document.activeElement?.matches('#memberExercisesContainer input[type="number"]')) centeredCard = null;
-            }, 0);
-        });
-        centerViewport?.addEventListener('resize', () => {
-            if (!document.activeElement?.matches('input, textarea')) centerFullHeight = Math.max(centerFullHeight, centerViewport.height);
-            scheduleExerciseCenter();
-        });
-        // Safari may pan the visual viewport after resizing it. Wait for that
-        // motion too; a completed task stays consumed and cannot scroll again.
-        centerViewport?.addEventListener('scroll', scheduleExerciseCenter);
-        window.addEventListener('orientationchange', () => {
-            cancelExerciseCenter();
-            centeredCard = null;
-            centerFullHeight = centerViewport?.height || window.innerHeight;
-        });
-        // Number inputs do not support setSelectionRange; restoring the value puts
-        // the caret at the end without replacing the input or firing a save.
-        function moveNumberCaretToEnd(input) {
-            const value = input.value;
-            input.value = '';
-            input.value = value;
-        }
-        document.addEventListener('pointerdown', event => {
-            const input = event.target;
-            if (!input.matches('#memberExercisesContainer input[type="number"]') ||
-                !window.matchMedia('(max-width: 639px)').matches || !event.isPrimary || event.button !== 0) return;
-            // Focus the actual touched input BEFORE opening the hint moves it.
-            // Do not let the later native tap hit the newly shifted row instead.
-            event.preventDefault();
-            input.focus({ preventScroll: true });
-            moveNumberCaretToEnd(input);
-        }, { capture: true });
-        document.addEventListener('focusin', event => {
-            const input = event.target;
-            if (input.matches('#memberExercisesContainer input[type="number"]')) {
-                moveNumberCaretToEnd(input);
-                input.closest('[data-exercise-index]')?.classList.add('is-editing-set');
-            }
-        });
-        document.addEventListener('focusout', event => {
-            const input = event.target;
-            if (!input.matches('#memberExercisesContainer input[type="number"]')) return;
-            const card = input.closest('[data-exercise-index]');
-            requestAnimationFrame(() => {
-                if (!card?.contains(document.activeElement)) card?.classList.remove('is-editing-set');
-            });
-        });
         function handleSetInputKey(event, input) {
             if (event.key !== 'Enter') return;
             event.preventDefault();
@@ -3110,10 +2974,6 @@ ${phaseGroupHtml}
             if (next) next.focus({ preventScroll: true });
             else input.blur();
         }
-        document.addEventListener('click', event => {
-            const input = event.target;
-            if (input.matches('#memberExercisesContainer input[type="number"]')) moveNumberCaretToEnd(input);
-        });
         document.addEventListener('beforeinput', event => {
             const input = event.target;
             if (!input.matches('#memberExercisesContainer input[type="number"][max="9"]') ||
@@ -3146,6 +3006,29 @@ ${phaseGroupHtml}
             const log = member.logs[member.selectedDate || getTodayISODate()] || {exercises:[]};
             container.innerHTML = renderMemberExerciseList(member, log);
             finishSetEditing(memberId);
+        }
+
+        function getPreviousExerciseNote(member, name, dateStr) {
+            const key = capitalizeExerciseName(name).toLowerCase();
+            if (!key) return '';
+            const dates = Object.keys(member.logs || {}).filter(date => date < dateStr).sort().reverse();
+            for (const date of dates) {
+                const exercises = member.logs[date]?.exercises || [];
+                for (let index = exercises.length - 1; index >= 0; index--) {
+                    const exercise = exercises[index];
+                    if (capitalizeExerciseName(exercise.name).toLowerCase() !== key) continue;
+                    if (typeof exercise.note === 'string' && exercise.note.trim()) return exercise.note;
+                }
+            }
+            return '';
+        }
+
+        function updateExerciseNote(memberId, dateStr, index, value) {
+            const member = window.appData.members.find(item => item.id === memberId);
+            const exercise = member?.logs?.[dateStr]?.exercises?.[index];
+            if (!exercise || (exercise.note || '') === value) return;
+            exercise.note = value;
+            persistData();
         }
 
         function getLastRecordedSession(member, name, dateStr) {
@@ -3247,7 +3130,7 @@ ${phaseGroupHtml}
                     <div class="bg-cardbg border border-dashed border-slate-700 rounded-2xl p-8 text-center text-slate-400">
                         <i class="fa-solid fa-dumbbell text-3xl mb-2 text-slate-600 block"></i>
                         <p class="text-xs">Chưa có bài tập nào được ghi lại cho ngày này.</p>
-                        <p class="text-[11px] text-slate-500 mt-1">Bấm "+ Thêm Bài Tập Mới" hoặc Nạp Mẫu Routine để bắt đầu!</p>
+                        <p class="text-[11px] text-slate-500 mt-1">Bấm "+ Thêm bài tập" hoặc Nạp Mẫu Routine để bắt đầu!</p>
                     </div>
                 `;
             }
@@ -3257,11 +3140,11 @@ ${phaseGroupHtml}
                 const transfer = getStrengthTransfer(member, ex.name, suggestDate);
                 const sug = getWeightSuggestion(member, ex.name, suggestDate, false, transfer);
                 const lastSession = getLastRecordedSession(member, ex.name, suggestDate);
+                const previousNote = getPreviousExerciseNote(member, ex.name, suggestDate);
                 const sugHtml = sug ? renderSuggestionRow(member, exIndex, sug, lastSession || sug.last) + renderStrengthTransfer(member, exIndex, ex.name, suggestDate, transfer) : renderLastSessionRow(lastSession, false);
                 return `
                     <div data-exercise-index="${exIndex}" class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
                         <div class="flex justify-between items-center gap-2 border-b border-slate-700 pb-2">
-                            <button type="button" data-track-drag-handle title="Kéo để đổi thứ tự bài tập" aria-label="Kéo bài tập ${exIndex + 1}" onpointerdown="event.stopPropagation(); startExerciseReorder(event, '${member.id}', ${exIndex})" oncontextmenu="event.preventDefault()" style="touch-action: none; -webkit-touch-callout: none;" class="shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-emerald-400 bg-slate-900 px-2 py-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"><svg width="12" height="20" viewBox="0 0 24 36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="pointer-events-none"><path d="M12 14V3m-5 5 5-5 5 5M3 18h18M12 22v11m-5-5 5 5 5-5"/></svg></button>
                             <div class="flex flex-1 min-w-0 items-center gap-1.5">
                             ${ex.transferFrom ? `<div class="flex-1 min-w-0 max-w-xs bg-slate-900 border border-slate-500 rounded-lg px-2.5 py-1 text-sm font-extrabold text-white" title="Bài trước khi transfer">${escapeTextValue(ex.transferFrom)}</div>` : `
                             <div class="flex-1 min-w-0 max-w-xs relative predictive-input-container">
@@ -3327,6 +3210,10 @@ ${phaseGroupHtml}
                             </table>
                         </div>
 
+                        <label class="block text-[11px] font-semibold text-slate-300">
+                            Ghi chú
+                            <textarea rows="2" maxlength="1000" placeholder="${escapeAttrValue(previousNote ? 'Buổi trước: ' + previousNote : '')}" oninput="updateExerciseNote('${member.id}', '${suggestDate}', ${exIndex}, this.value)" class="block w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-normal text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500">${escapeTextValue(ex.note || '')}</textarea>
+                        </label>
                         <div class="pt-0.5">
                             <button onpointerdown="event.preventDefault()" onclick="addSetToExercise('${member.id}', ${exIndex})" class="px-2.5 py-1 bg-transparent hover:bg-slate-800 text-emerald-400 rounded-lg text-[11px] font-semibold border border-slate-500 transition">
                                 + Thêm Set
@@ -3607,22 +3494,6 @@ ${phaseGroupHtml}
 
         // ========== SECTION 15: KHO BÀI TẬP (EXERCISE LIBRARY) ========== 
         // Quản lý Kho Bài Tập (Exercise Library Modal)
-        let libraryCategoryChanged = false;
-        function openExerciseLibraryModal() {
-            renderExerciseLibraryModalList();
-            document.getElementById('exerciseLibraryModal').classList.remove('hidden');
-            document.getElementById('exerciseLibraryModal').classList.add('flex');
-        }
-
-        function closeExerciseLibraryModal() {
-            document.getElementById('exerciseLibraryModal').classList.add('hidden');
-            document.getElementById('exerciseLibraryModal').classList.remove('flex');
-            if (libraryCategoryChanged) {
-                libraryCategoryChanged = false;
-                if (window.appData.activeTab === 'track') renderContent();
-            }
-        }
-
         function renderExerciseLibraryModalList() {
             const container = document.getElementById('exerciseLibraryList');
             if (!container) return;
@@ -3710,7 +3581,7 @@ ${phaseGroupHtml}
                 highlight(zone && library.contains(zone) ? zone : null);
             }
             function tick(time) {
-                if (!card.isConnected || document.getElementById('exerciseLibraryModal').classList.contains('hidden')) { finish(null,false); return; }
+                if (!card.isConnected || window.appData.activeTab !== 'library') { finish(null,false); return; }
                 const dt = Math.min(32, lastTime === null ? 16 : time-lastTime); lastTime = time;
                 if (scroller) {
                     const r = scroller.getBoundingClientRect(), edge = Math.min(56,r.height/4);
@@ -3718,6 +3589,10 @@ ${phaseGroupHtml}
                         const speed = y < r.top+edge ? -(r.top+edge-y)/edge : (y > r.bottom-edge ? (y-r.bottom+edge)/edge : 0);
                         scroller.scrollTop += speed * 600 * dt / 1000;
                     }
+                } else {
+                    const edge = 60;
+                    const speed = y < edge ? -(edge - y) / edge : Math.max(0, y - innerHeight + edge) / edge;
+                    if (speed) window.scrollBy(0, speed * 600 * dt / 1000);
                 }
                 paint(); frame = requestAnimationFrame(tick);
             }
@@ -3749,7 +3624,6 @@ ${phaseGroupHtml}
             item.category = category;
             persistData();
             renderExerciseLibraryModalList();
-            libraryCategoryChanged = true;
         }
 
         function addExerciseToLibrary() {
@@ -3771,7 +3645,6 @@ ${phaseGroupHtml}
             const bodyweightInput = document.getElementById('libNewExBodyweight');
             window.appData.exerciseLibrary.push({ name: nameCap, category: category, ...(bodyweightInput && bodyweightInput.checked ? {bodyweight:true} : {}) });
             if (bodyweightInput) bodyweightInput.checked = false;
-            libraryCategoryChanged = true;
             input.value = '';
             persistData();
             renderExerciseLibraryModalList();
@@ -3788,19 +3661,6 @@ ${phaseGroupHtml}
 
         // ========== SECTION 16: MẪU BUỔI TẬP + LỊCH TẬP TUẦN ========== 
         // Quản lý Modal Mẫu Buổi Tập & Lịch Tuần
-        function openRoutineModal() {
-            renderWeeklyScheduleInputs();
-            renderRoutinesList();
-            document.getElementById('routineModal').classList.remove('hidden');
-            document.getElementById('routineModal').classList.add('flex');
-        }
-
-        function closeRoutineModal() {
-            document.getElementById('routineModal').classList.add('hidden');
-            document.getElementById('routineModal').classList.remove('flex');
-            renderContent();
-        }
-
         function renderWeeklyScheduleInputs() {
             const container = document.getElementById('weeklyScheduleInputs');
             if (!container) return;
