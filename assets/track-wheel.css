@@ -1,0 +1,138 @@
+/* Track is a fixed-height workspace. Only the exercise wheel moves. */
+html:has(body.track-layout) { overflow: hidden; overscroll-behavior: none; }
+body.track-layout { height: var(--track-height, 100dvh); min-height: 0; overflow: hidden; overscroll-behavior: none; padding-bottom: 0; }
+body.track-layout > header, body.track-layout > header + div { flex-shrink: 0; position: relative; top: auto; }
+body.track-layout > footer, body.track-layout #iosInstallBanner { display: none; }
+body.track-layout #appContent { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 8px 12px; gap: 6px; }
+#trackMemberSelector { margin: 0; padding: 5px 8px; flex-wrap: nowrap; gap: 8px; flex-shrink: 0; }
+#trackMemberSelector > div:nth-child(2) { flex: 0 1 auto; min-width: 0; }
+#trackMemberSelector > div:last-child { width: auto; flex: 1; min-width: 0; }
+#trackMemberSelector > div:last-child > div { min-width: 0; }
+#trackMemberSelector select { padding-top: 4px; padding-bottom: 4px; }
+#trackMemberContent, #trackMemberContent > div { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; gap: 6px; }
+#trackMemberContent > div > * { margin-top: 0; margin-bottom: 0; flex-shrink: 0; }
+.track-profile { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 7px 10px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
+.track-profile-left, .track-profile-right { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.track-profile-left h2 { color: #fff; font-size: 14px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track-bodyweight { display: inline-flex; align-self: flex-start; align-items: center; gap: 3px; padding: 3px 6px; border: 1px solid #000; border-radius: 7px; background: #0f172a; color: #fcd34d; font-size: 11px; }
+.track-bodyweight input { width: 5ch; min-width: 2ch; max-width: 7ch; text-align: right; appearance: textfield; }
+.track-bodyweight input::-webkit-inner-spin-button,
+.track-bodyweight input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+@supports (field-sizing: content) {
+    .track-bodyweight input { width: auto; field-sizing: content; }
+}
+.track-profile-right { align-items: flex-end; }
+.track-profile-right button { white-space: nowrap; font-size: 10px; padding: 3px 5px; }
+.track-date { display: flex; gap: 5px; align-items: center; padding: 3px 6px; border: 1px solid #000; border-radius: 7px; background: #0f172a; font-size: 11px; color: #6ee7b7; }
+.track-date input { min-width: 0; max-width: 126px; }
+#memberTrendPanel { font-size: 12px; line-height: 1.25; }
+#memberTrendPanel > div { padding: 5px 8px !important; border-radius: 8px; }
+#memberTrendPanel * { font-size: 12px !important; line-height: 1.25 !important; }
+#trackBottomActions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 4px 0 0; }
+#trackBottomActions button, #trackBottomActions select { width: 100%; min-width: 0; justify-content: center; padding: 10px 6px; font-size: 12px; }
+#trackBottomActions > div { min-width: 0; }
+#memberExercisesContainer.track-deck { flex: 1 1 0; height: auto; min-height: 0; overflow: hidden; overscroll-behavior: none; padding: 32px 5px; position: relative; isolation: isolate; }
+.track-deck > [data-exercise-index] { position: relative; z-index: 1; transform: translateZ(0); transition: border-color 160ms ease; }
+#memberExercisesContainer.track-deck > [data-exercise-index] + [data-exercise-index] { margin-top: 8px; }
+.track-deck > [data-exercise-index].track-active { z-index: 3; border-color: #34d399; box-shadow: 0 0 0 1px #34d39955, 0 4px 10px #02061780; }
+@media (max-width: 639px) {
+    body.track-layout { padding-bottom: calc(54px + env(safe-area-inset-bottom)); }
+    body.track-layout #appContent { padding: 5px 7px; gap: 4px; }
+    #trackMemberContent, #trackMemberContent > div { gap: 4px; }
+    #trackMemberSelector > div:first-child { display: none; }
+    #trackMemberSelector > div:nth-child(2) { max-width: 105px; }
+    #trackMemberSelector > div:nth-child(2) > div { font-size: 9px; line-height: 1.15; margin: 0; }
+    #trackMemberSelector > div:last-child { gap: 5px; }
+    #trackMemberSelector select { font-size: 12px; }
+    .track-profile { padding: 8px 10px; gap: 6px; }
+    .track-profile-left h2 { font-size: 15px; }
+    .track-profile-right button { font-size: 9px; padding: 3px; }
+    .track-profile-right button i { display: none; }
+
+}
+@media (prefers-reduced-motion: reduce) { .track-deck > [data-exercise-index] { transition: none; } }
+@media (max-width: 639px) {
+    body.track-layout { position: fixed; top: var(--keyboard-top, 0px); left: 0; width: 100%; }
+    body.track-keyboard.track-layout { padding: 0; }
+    body.track-keyboard > header, body.track-keyboard > header + div, body.track-keyboard #trackMemberSelector, body.track-keyboard #memberProfileHeader, body.track-keyboard #memberTrendPanel, body.track-keyboard #trackBottomActions, body.track-keyboard #mobileNavigationDock { display: none; }
+    body.track-keyboard #appContent { padding: 0 5px; }
+    body.track-keyboard #memberExercisesContainer.track-deck { position: relative; flex: 1 1 0; min-height: 0; background: #0f172a; }
+    body.track-layout #memberExercisesContainer input { font-size: 16px; }
+}
+
+body.track-layout, #memberExercisesContainer.track-deck, .track-deck > [data-exercise-index] { overflow-anchor: none; }
+
+body.track-layout .entry-suggestions { transition: none; }
+
+/* Dim an opaque card using a composited overlay rather than filtering its text. */
+.track-deck > [data-exercise-index] > .track-card-shade {
+
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: #020617;
+    opacity: 0;
+    margin: 0 !important;
+    will-change: opacity;
+    pointer-events: none;
+    z-index: 40;
+}
+#trackBottomActions button, #trackBottomActions select {
+    min-height: 42px;
+    font-weight: 700;
+    font-size: 13px;
+}
+#trackBottomActions select {
+    background: #282656;
+    border-color: #6366a5;
+    color: #e0e7ff;
+}
+@media (max-width: 639px) {
+    #mobileNavigationDock {
+        height: calc(54px + env(safe-area-inset-bottom));
+        padding: 4px 7px calc(4px + env(safe-area-inset-bottom));
+        gap: 5px;
+        background: #101a2c;
+        border-color: #334155;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+    #mobileNavigationDock button {
+        flex: 1;
+        min-width: 0;
+        min-height: 42px;
+        justify-content: center;
+        gap: 2px;
+        border-radius: 9px;
+        background: #1e293b;
+        color: #e2e8f0;
+        font-weight: 700;
+    }
+    #mobileNavigationDock button[aria-current="page"] {
+        background: #164e63;
+        color: #ecfeff;
+        box-shadow: inset 0 0 0 1px #22d3ee85;
+    }
+    #mobileNavigationDock button span { font-size: 11px; white-space: nowrap; }
+}
+.management-page {
+    width: 100%;
+    max-width: 68rem;
+    flex: 1;
+    margin: 0 auto;
+    padding: 12px;
+}
+@media (max-width: 639px) {
+    #mobileNavigationDock [data-page="overview"] { --dock-color: #6ee7b7; --dock-bg: #123b34; }
+    #mobileNavigationDock [data-page="track"] { --dock-color: #67e8f9; --dock-bg: #12394d; }
+    #mobileNavigationDock [data-page="library"] { --dock-color: #fcd34d; --dock-bg: #3a2d1c; }
+    #mobileNavigationDock [data-page="schedule"] { --dock-color: #c4b5fd; --dock-bg: #302648; }
+    #mobileNavigationDock button[data-page] {
+        background: var(--dock-bg);
+        color: var(--dock-color);
+    }
+    #mobileNavigationDock button[aria-current="page"] {
+        box-shadow: inset 0 0 0 1px var(--dock-color);
+    }
+    #mobileNavigationDock button[aria-current="page"] span { color: #fff; }
+}
