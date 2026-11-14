@@ -142,7 +142,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             transition: grid-template-rows 220ms ease, opacity 160ms ease, visibility 220ms;
         }
         .entry-suggestions > .entry-suggestions-content { min-height: 0; overflow: hidden; }
-        [data-exercise-index]:has(input[type="number"]:focus) > .entry-suggestions,
+        [data-exercise-index]:has(input[type="number"]:focus, textarea:focus) > .entry-suggestions,
         [data-exercise-index].is-editing-set > .entry-suggestions,
         [data-exercise-index] > .entry-suggestions:focus-within {
             grid-template-rows: 1fr; opacity: 1; visibility: visible;
@@ -197,6 +197,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             box-shadow: 0 0 8px rgba(129,140,248,0);
         }
     </style>
+    <link rel="stylesheet" href="./assets/ui-system.css">
 </head>
 <body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col">
 
@@ -343,11 +344,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             </h3>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Tên Thành Viên</label>
+                    <label for="newMemberName" class="block text-xs font-semibold text-slate-300 uppercase mb-1">Tên Thành Viên</label>
                     <input type="text" id="newMemberName" placeholder="VD: Hoàng Gymmer" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Cân Nặng Ban Đầu (kg)</label>
+                    <label for="newMemberWeight" class="block text-xs font-semibold text-slate-300 uppercase mb-1">Cân Nặng Ban Đầu (kg)</label>
                     <input type="number" step="0.1" id="newMemberWeight" placeholder="70.5" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>
             </div>
@@ -367,7 +368,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             <input type="hidden" id="editMemberId">
             <div class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Tên Thành Viên</label>
+                    <label for="editMemberName" class="block text-xs font-semibold text-slate-300 uppercase mb-1">Tên Thành Viên</label>
                     <input type="text" id="editMemberName" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
                 </div>
             </div>
@@ -448,8 +449,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 <div class="bg-slate-900/80 p-3.5 border border-slate-800 rounded-xl space-y-3">
                     <h4 class="text-xs font-bold text-amber-300 uppercase">Thêm bài tập Vào Kho</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(170px,0.52fr)] gap-2">
-                        <input type="text" id="libNewExName" placeholder="Tên bài (VD: Bulgarian Split Squat)" class="min-w-0 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
-                        <select id="libNewExCategory" class="min-w-0 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-medium focus:outline-none">
+                        <input type="text" id="libNewExName" aria-label="Tên bài tập mới" placeholder="Tên bài (VD: Bulgarian Split Squat)" class="min-w-0 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                        <select id="libNewExCategory" aria-label="Nhóm cơ" class="min-w-0 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-medium focus:outline-none">
                             <option value="Chest">Ngực</option>
                             <option value="Lats">Xô</option>
                             <option value="Traps">Traps</option>
@@ -520,6 +521,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const LOCAL_ONLY_MEMBER_KEYS = ['selectedDate'];
 
             let syncCode = '';
+            let syncReady = false;
             let syncEpoch = 0;
             let syncVersion = 0;
             let syncBase = null; // bản dữ liệu chung đã đồng bộ gần nhất (dùng để gộp khi xung đột)
@@ -595,6 +597,18 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 appStorage.setItem(SYNC_STATE_KEY, JSON.stringify({ code: syncCode, version: syncVersion, base: syncBase }));
             }
 
+            function backupBeforeRollback() {
+                appStorage.setItem('gym_group_tracker_backup_before_rollback', JSON.stringify(window.appData));
+            }
+
+            function acceptRestoredGroup(body) {
+                backupBeforeRollback();
+                syncVersion = body.version;
+                syncBase = body.data;
+                applyRemote(body.data);
+                saveSyncState();
+            }
+
             function isUserEditing() {
                 const el = document.activeElement;
                 return !!(el && ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
@@ -612,7 +626,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             }
 
             async function pull() {
-                if (!syncCode || pushing || pushTimer) return;
+                if (!syncReady || !syncCode || pushing || pushTimer) return;
                 if (navigator.onLine === false) { setConnected(false); return; }
                 const epoch = syncEpoch;
                 // Không vẽ lại màn hình khi đang gõ để tránh mất con trỏ; lần kiểm tra sau sẽ cập nhật
@@ -626,6 +640,17 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     setConnected(true);
                     if (body.unchanged) return 'unchanged';
                     if (pushing || pushTimer || isUserEditing()) return;
+                    if (body.version > 0 && body.version < syncVersion && body.data) {
+                        acceptRestoredGroup(body);
+                        return 'changed';
+                    }
+                    if (body.version === 0 && syncVersion > 0) {
+                        backupBeforeRollback();
+                        syncReady = false;
+                        setConnected(false);
+                        showToast('Không thấy nhóm đã đồng bộ. Dữ liệu trên máy vẫn được giữ.', 'error');
+                        return;
+                    }
                     if (body.version === 0) {
                         // Nhóm mới: đẩy dữ liệu của máy này lên làm bản đầu tiên
                         syncVersion = 0;
@@ -679,7 +704,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
             async function push() {
                 pushTimer = null;
-                if (!syncCode || navigator.onLine === false) { if (syncCode) setConnected(false); return; }
+                if (!syncReady || !syncCode || navigator.onLine === false) { if (syncCode) setConnected(false); return; }
                 if (pushing) { pushQueued = true; return; }
                 pushing = true;
                 const epoch = syncEpoch;
@@ -703,6 +728,15 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                             break;
                         }
                         if (res.status === 409) {
+                            if (body.version < syncVersion) {
+                                if (body.version > 0 && body.data) acceptRestoredGroup(body);
+                                else {
+                                    backupBeforeRollback();
+                                    syncReady = false;
+                                    setConnected(false);
+                                }
+                                break;
+                            }
                             // Có người vừa lưu trước: gộp với bản mới nhất rồi thử lại
                             const merged = body.data ? merge3(syncBase, toShared(window.appData), body.data) : toShared(window.appData);
                             syncVersion = body.version || 0;
@@ -725,7 +759,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             }
 
             function schedulePush(delay = 2500) {
-                if (!syncCode) return;
+                if (!syncReady || !syncCode) return;
                 if (navigator.onLine === false) { setConnected(false); return; }
                 clearTimeout(pushTimer);
                 pushTimer = setTimeout(push, delay);
@@ -751,6 +785,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 try { saved = JSON.parse(appStorage.getItem(SYNC_STATE_KEY) || 'null'); } catch (e) {}
                 const resumed = saved && saved.code === code;
                 const epoch = ++syncEpoch;
+                syncReady = false;
                 syncCode = code;
                 syncVersion = resumed ? saved.version : 0;
                 syncBase = resumed && saved.base ? toShared(saved.base) : null;
@@ -762,7 +797,12 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 let carried = [];
                 let carriedLibrary = [];
                 if (switching) {
-                    try { appStorage.setItem('gym_group_tracker_backup_before_join', JSON.stringify(window.appData)); } catch (e) {}
+                    try {
+                        const key = 'gym_group_tracker_backup_before_join';
+                        if ((window.appData.members || []).length || !appStorage.getItem(key)) {
+                            appStorage.setItem(key, JSON.stringify(window.appData));
+                        }
+                    } catch (_) {}
                     carried = (window.appData.members || [])
                         .filter(m => carryIds.includes(m.id) && !(window.isDemoMember && window.isDemoMember(m)))
                         .map(clone);
@@ -786,9 +826,22 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
                     if (!res.ok) throw new Error('HTTP ' + res.status);
                     const body = await res.json();
+                    if (epoch !== syncEpoch) return false;
                     if (body.data) body.data = toShared(body.data);
+                    if (body.version > 0 && !body.data) throw new Error('Missing group data');
+                    if (resumed && syncVersion > 0 && body.version === 0) {
+                        backupBeforeRollback();
+                        setConnected(false);
+                        showToast('Không thấy nhóm đã đồng bộ. Dữ liệu trên máy vẫn được giữ.', 'error');
+                        return false;
+                    }
+                    syncReady = true;
                     if (body.version > 0) {
-                        if (resumed && syncBase) {
+                        const restored = resumed && (body.version < syncVersion ||
+                            (body.version === syncVersion && syncBase && !same(body.data, syncBase)));
+                        if (restored) {
+                            acceptRestoredGroup(body);
+                        } else if (resumed && syncBase) {
                             // Gộp các thay đổi làm lúc offline với dữ liệu nhóm hiện tại
                             const merged = merge3(syncBase, toShared(window.appData), body.data);
                             applyRemote(merged);
@@ -814,7 +867,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         }
                         syncVersion = body.version;
                         syncBase = body.data;
-                        schedulePush(0);
+                        if (!restored) schedulePush(0);
                     } else {
                         syncVersion = 0;
                         syncBase = null;
@@ -832,10 +885,15 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     setConnected(true);
                 } catch (err) {
                     if (epoch !== syncEpoch) return false;
+                    syncReady = false;
                     console.error('Cloud sync connect failed:', err);
                     isCloudConnected = true;
                     setConnected(false);
-                    if (!resumed && navigator.onLine !== false) showToast('Không kết nối được máy chủ đồng bộ. Sẽ tự thử lại.', 'error');
+                    if (!resumed && navigator.onLine !== false) showToast('Không kết nối được máy chủ đồng bộ. Hãy thử lại.', 'error');
+                    if (resumed) pollTimer = setTimeout(() => {
+                        if (epoch === syncEpoch) window.setupCloudSync(code);
+                    }, POLL_STEPS_MS[0]);
+                    return false;
                 }
 
                 pollStep = 0;
@@ -847,6 +905,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 clearTimeout(pollTimer);
                 clearTimeout(pushTimer);
                 syncEpoch++;
+                syncReady = false;
                 syncCode = '';
                 appStorage.removeItem(SYNC_STATE_KEY);
             };
@@ -1510,7 +1569,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                                 <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono" title="Trung bình Epley, Brzycki và Lander">e1RM TB</span>
                             </div>
                             <div class="chart-container">
-                                <canvas id="chart1RM"></canvas>
+                                <canvas id="chart1RM" role="img" aria-label="Biểu đồ tiến trình sức mạnh 1RM"></canvas>
                             </div>
                         </div>
 
@@ -1522,7 +1581,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                                 <span class="text-[10px] bg-cyan-950 text-cyan-400 border border-cyan-800/60 px-2 py-0.5 rounded-full font-mono">Ratio</span>
                             </div>
                             <div class="chart-container">
-                                <canvas id="chartRelative"></canvas>
+                                <canvas id="chartRelative" role="img" aria-label="Biểu đồ sức mạnh tương quan cân nặng"></canvas>
                             </div>
                         </div>
                     </div>
@@ -1532,7 +1591,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                             <i class="fa-solid fa-weight-scale text-amber-400"></i> Theo Dõi Cân Nặng Thành Viên (kg)
                         </h3>
                         <div class="chart-container" style="height: 260px;">
-                            <canvas id="chartBodyWeight"></canvas>
+                            <canvas id="chartBodyWeight" role="img" aria-label="Biểu đồ cân nặng thành viên"></canvas>
                         </div>
                     </div>
 
@@ -2716,16 +2775,17 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         // ========== SECTION 13: PHÂN TÍCH XU HƯỚNG SỨC MẠNH ========== 
         // XU HƯỚNG TẠ (những buổi tập gần đây)
         // Với mỗi buổi tập, so sức mạnh ước tính (e1RM) của từng bài với buổi gần nhất trước đó của chính bài đó,
-        // lấy trung bình có trọng số theo thứ tự bài (1, 1/2, 1/3...) -> % thay đổi của buổi. Nối các buổi lại thành chỉ số (mốc 100) để thấy đang tiến bộ hay không.
+        // lấy trung bình có trọng số theo thứ tự bài (1, 1/2, 1/3...) -> % thay đổi của buổi. Tính trung bình cộng các buổi với trọng số giảm dần theo độ cũ.
         // Chỉ xét TREND_RECENT_DAYS buổi gần nhất trong ~8 tuần; tăng/giảm từ 2% trở lên mới tính, còn lại là "Đi ngang".
         // =====================================================================
         const TREND_WINDOW_DAYS = 56;
         const TREND_RECENT_DAYS = 8;
+        const TREND_HALF_LIFE_SESSIONS = 4;
         const TREND_MIN_PCT = 2;
         const TREND_LEVELS = {
             up:   { label: 'Tăng',     icon: 'fa-arrow-trend-up',   text: 'text-emerald-300', stroke: '#34d399' },
-            flat: { label: 'Đi ngang', icon: 'fa-minus',            text: 'text-slate-300',   stroke: '#94a3b8' },
-            down: { label: 'Giảm',     icon: 'fa-arrow-trend-down', text: 'text-rose-300',    stroke: '#fb7185' }
+            flat: { label: 'Đi ngang', icon: 'fa-minus',            text: 'text-amber-300',   stroke: '#fcd34d' },
+            down: { label: 'Giảm',     icon: 'fa-arrow-trend-down', text: 'text-red-400',    stroke: '#f87171' }
         };
 
         function loadIsoOf(dayNum) { return new Date(dayNum * 86400000).toISOString().slice(0, 10); }
@@ -2768,11 +2828,16 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 return { date: d, pct: pct, n: ch.length, counts: counts, level: trendLevelOf(pct) };
             });
             if (days.length < 2) return null;
-            let idx = 100;
-            const pts = [{ t: 0, eff: 100 }];
-            days.forEach((d, i) => { idx *= 1 + d.pct / 100; pts.push({ t: i + 1, eff: idx }); });
-            const pct = idx - 100;
-            return { days: days, pts: pts, pct: pct, level: trendLevelOf(pct) };
+            let weightedTotal = 0;
+            let totalWeight = 0;
+            days.forEach((day, index) => {
+                const sessionsAgo = days.length - 1 - index;
+                day.recencyWeight = 2 ** (-sessionsAgo / TREND_HALF_LIFE_SESSIONS);
+                weightedTotal += day.pct * day.recencyWeight;
+                totalWeight += day.recencyWeight;
+            });
+            const pct = weightedTotal / totalWeight;
+            return { days, pct, level: trendLevelOf(pct) };
         }
 
 
@@ -2782,8 +2847,29 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             if (!tr) return `<div class="border border-slate-700 bg-slate-900/60 rounded-xl p-3 text-xs text-slate-400">${label}Chưa đủ dữ liệu</div>`;
             const lv = TREND_LEVELS[tr.level];
             const verdict = { up: 'Bạn đang tiến bộ', flat: 'Sức mạnh đang đi ngang', down: 'Sức mạnh đang giảm' }[tr.level];
-            const tip = `Sau ${tr.days.length} buổi gần nhất; bài đầu buổi có trọng số lớn hơn (1, 1/2, 1/3...).`;
-            return `<div title="${tip}" class="border border-slate-700 bg-slate-900/60 rounded-xl p-3 text-xs"><span class="font-bold text-slate-100">${label}</span><span class="font-bold ${lv.text}"><i class="fa-solid ${lv.icon} mr-1"></i>${verdict} ${trendPctTxt(tr.pct)} (${TREND_RECENT_DAYS} buổi gần đây)</span></div>`;
+            const rows = tr.days.slice().reverse().map(day => `
+                <tr class="border-t border-slate-800">
+                    <td class="px-2 py-1.5 whitespace-nowrap"><time datetime="${day.date}">${loadFmtDate(day.date)}</time></td>
+                    <td class="px-2 py-1.5 text-right ${TREND_LEVELS[day.level].text}">${trendPctTxt(day.pct)}</td>
+                    <td class="px-2 py-1.5 text-right">${day.n}</td>
+                    <td class="px-2 py-1.5 text-right">${Math.round(day.recencyWeight * 100)}%</td>
+                </tr>`).join('');
+            return `<details class="border border-slate-700 bg-slate-900/60 rounded-lg text-xs">
+                <summary class="cursor-pointer px-2 py-1.5">
+                    <span class="font-bold text-slate-100">${label}</span><span class="font-bold ${lv.text}"><i class="fa-solid ${lv.icon} mr-1"></i>${verdict} ${trendPctTxt(tr.pct)}</span><span class="block pl-4 text-slate-400">(${tr.days.length} buổi gần đây)</span>
+                </summary>
+                <div class="max-h-[24dvh] overflow-y-auto overscroll-contain">
+                    <table aria-label="Các buổi dùng để tính xu hướng tạ" class="w-full text-slate-300">
+                        <thead class="sticky top-0 bg-slate-900"><tr>
+                            <th scope="col" class="px-2 py-1.5 text-left">Ngày</th>
+                            <th scope="col" class="px-2 py-1.5 text-right">Tăng/giảm</th>
+                            <th scope="col" class="px-2 py-1.5 text-right">Số bài</th>
+                            <th scope="col" class="px-2 py-1.5 text-right">Trọng số</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </details>`;
         }
 
         // Thẻ tổng quan cho cả nhóm: mỗi người đang tiến bộ / đi ngang / giảm so với các buổi tập gần đây
@@ -2837,6 +2923,34 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 to => moveLogExercise(memberId, dateStr, index, to, expectedOrder), renderContent, fromHandle);
         }
 
+        // Auto-scroll and hit testing share the visible area between fixed controls.
+        function managementDragBounds(scroller) {
+            const viewport = window.visualViewport;
+            const header = document.querySelector('body > header');
+            const desktopNav = header?.nextElementSibling;
+            const dock = document.getElementById('mobileNavigationDock');
+            const bounds = scroller?.getBoundingClientRect();
+            let top = Math.max(viewport?.offsetTop ?? 0, bounds?.top ?? 0);
+            let bottom = Math.min((viewport?.offsetTop ?? 0) + (viewport?.height ?? innerHeight), bounds?.bottom ?? innerHeight);
+            for (const el of [header, desktopNav]) {
+                if (el?.getClientRects().length && ['sticky', 'fixed'].includes(getComputedStyle(el).position)) {
+                    top = Math.max(top, el.getBoundingClientRect().bottom);
+                }
+            }
+            if (dock?.getClientRects().length) bottom = Math.min(bottom, dock.getBoundingClientRect().top);
+            return { top, bottom };
+        }
+
+        function scrollManagementDrag(scroller, y, dt) {
+            const { top, bottom } = managementDragBounds(scroller);
+            const edge = Math.min(60, (bottom - top) / 3);
+            if (edge <= 0) return;
+            const up = Math.min(1, Math.max(0, (top + edge - y) / edge));
+            const down = Math.min(1, Math.max(0, (y - bottom + edge) / edge));
+            const delta = (down - up) * 600 * dt;
+            if (delta) (scroller || window).scrollBy({ top: delta, behavior: 'instant' });
+        }
+
         // Dùng chung hiệu ứng nhấc/kéo/thả cho nhật ký và cài đặt routine.
         function startListReorder(event, container, card, commit, redraw, fromHandle = false) {
             const pointerId = event.pointerId;
@@ -2845,6 +2959,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const offsetY = event.clientY - rect.top;
             const others = Array.from(container.children).filter(el => el !== card);
             const scroller = container.closest('.overflow-y-auto');
+            const schedulePage = container.closest('#schedulePage');
             const mouseDrag = event.pointerType === 'mouse';
             const originalIndex = Array.from(container.children).indexOf(card);
             let pointerY = event.clientY, ghost = null, marker = null, frame = null;
@@ -2899,7 +3014,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const lineY = target < bounds.length ? bounds[target].top - 4
                     : (bounds.length ? bounds[bounds.length - 1].bottom + 4 : card.getBoundingClientRect().top);
                 marker.style.transform = 'translate3d(0,' + lineY + 'px,0)';
-                marker.style.opacity = destination === originalIndex ? '0' : '1';
+                const visible = schedulePage ? managementDragBounds(scroller) : null;
+                marker.style.opacity = destination === originalIndex || (visible && (lineY < visible.top || lineY >= visible.bottom)) ? '0' : '1';
             }
             function tick(now) {
                 if (finished) return;
@@ -2911,7 +3027,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const up = Math.min(1, Math.max(0, (viewport.top + edge - pointerY) / edge));
                 const down = Math.min(1, Math.max(0, (pointerY - viewport.bottom + edge) / edge));
                 const scroll = (down - up) * 600 * dt;
-                if (scroll) {
+                if (schedulePage) scrollManagementDrag(scroller, pointerY, dt);
+                else if (scroll) {
                     if (scroller) scroller.scrollTop += scroll;
                     else window.scrollBy(0, scroll);
                 }
@@ -2939,7 +3056,12 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     willChange: 'transform', transition: 'none', transform: 'translate3d(0,0,0)',
                     boxShadow: '0 18px 45px rgba(0,0,0,0.55)', opacity: '0.95'
                 });
-                ghost.classList.add('ring-2', 'ring-emerald-400', 'bg-cardbg');
+                if (schedulePage) {
+                    ghost.style.height = rect.height + 'px';
+                    ghost.style.opacity = '1';
+                } else {
+                    ghost.classList.add('ring-2', 'ring-emerald-400', 'bg-cardbg');
+                }
                 marker = document.createElement('div');
                 marker.setAttribute('aria-hidden', 'true');
                 Object.assign(marker.style, {
@@ -2948,7 +3070,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     boxShadow: '0 0 8px rgba(52,211,153,.55)', pointerEvents: 'none',
                     zIndex: '101', willChange: 'transform'
                 });
-                document.body.appendChild(ghost);
+                (schedulePage || document.body).appendChild(ghost);
                 document.body.appendChild(marker);
                 card.classList.add('opacity-30', 'ring-2', 'ring-emerald-400');
                 paint();
@@ -2993,7 +3115,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const panel = document.getElementById('memberTrendPanel');
                 if (member && panel) {
                     const html = renderTrendPanel(member, member.selectedDate || getTodayISODate());
-                    if (panel.innerHTML !== html) panel.innerHTML = html;
+                    const next = panel.cloneNode(false);
+                    next.innerHTML = html;
+                    const details = next.querySelector('details');
+                    if (details) details.open = panel.querySelector('details')?.open ?? false;
+                    if (panel.innerHTML !== next.innerHTML) panel.replaceChildren(...next.childNodes);
                 }
             });
         }
@@ -3153,7 +3279,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                                     oninput="handlePredictiveInput(this, '${member.id}', ${exIndex})"
                                     onchange="commitExerciseNameInput(this, '${member.id}', ${exIndex})"
                                     onkeydown="if(event.key==='Enter' &amp;&amp; !event.isComposing){event.preventDefault(); commitExerciseNameInput(this, '${member.id}', ${exIndex}, true)}" title="Chọn tên trong gợi ý; tên mới nhấn Enter để lưu"
-                                    class="w-full max-w-xs bg-slate-900 border border-slate-500 rounded-lg px-2.5 py-1 text-sm text-white font-extrabold focus:outline-none focus:border-emerald-500">
+                                    class="w-full max-w-xs bg-slate-900 border border-slate-500 rounded-lg px-2.5 py-1 text-sm text-white font-extrabold focus:outline-none">
                                 <div id="pred_dropdown_${exIndex}" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto"></div>
                             </div>`}
 
@@ -3187,13 +3313,13 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                                             <tr>
                                                 <td class="py-1.5 font-mono font-bold text-slate-400">${setIndex + 1}</td>
                                                 <td class="py-1.5 pr-1.5">
-                                                    <input data-weight-input type="number" inputmode="decimal" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                                                    <input data-weight-input type="number" inputmode="decimal" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
                                                 </td>
                                                 <td class="py-1.5 pr-1.5">
-                                                    <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                                                    <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
                                                 </td>
                                                 <td class="py-1.5 pr-1.5">
-                                                    <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1); updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none focus:border-amber-500">
+                                                    <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1); updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none">
                                                 </td>
                                                 <td data-set-rm class="py-1.5 font-mono text-emerald-400 text-[10px] font-semibold whitespace-nowrap">
                                                     ${estRM > 0 || (isBodyweightExercise(ex.name) && parseFloat(s.reps) > 0) ? estRM + ' kg' : '-'}
@@ -3210,10 +3336,10 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                             </table>
                         </div>
 
-                        <label class="block text-[11px] font-semibold text-slate-300">
-                            Ghi chú
-                            <textarea rows="2" maxlength="1000" placeholder="${escapeAttrValue(previousNote ? 'Buổi trước: ' + previousNote : '')}" oninput="updateExerciseNote('${member.id}', '${suggestDate}', ${exIndex}, this.value)" class="block w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-normal text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500">${escapeTextValue(ex.note || '')}</textarea>
-                        </label>
+                        <div class="text-[11px] font-semibold text-slate-300">
+                            <span>Ghi chú</span>
+                            <textarea aria-label="Ghi chú" rows="2" maxlength="1000" placeholder="${escapeAttrValue(previousNote ? 'Buổi trước: ' + previousNote : '')}" oninput="updateExerciseNote('${member.id}', '${suggestDate}', ${exIndex}, this.value)" class="block w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-normal text-slate-100 placeholder:text-slate-500 focus:outline-none">${escapeTextValue(ex.note || '')}</textarea>
+                        </div>
                         <div class="pt-0.5">
                             <button onpointerdown="event.preventDefault()" onclick="addSetToExercise('${member.id}', ${exIndex})" class="px-2.5 py-1 bg-transparent hover:bg-slate-800 text-emerald-400 rounded-lg text-[11px] font-semibold border border-slate-500 transition">
                                 + Thêm Set
@@ -3536,7 +3662,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 if (!items.length) html += '<p class="text-[10px] text-slate-500 py-1">Thả bài tập vào đây</p>';
                 items.forEach(item => {
                     html += `
-                        <div data-library-exercise="${item.originalIndex}" onpointerdown="startLibraryCategoryDrag(event, ${item.originalIndex})" oncontextmenu="event.preventDefault()" style="touch-action:none; -webkit-user-select:none; user-select:none" title="Kéo sang nhóm cơ khác" class="inline-flex items-center gap-1.5 max-w-full bg-slate-800/90 border border-slate-700 rounded-lg pl-2.5 pr-1.5 py-1.5 cursor-grab active:cursor-grabbing">
+                        <div data-library-exercise="${item.originalIndex}" onpointerdown="startLibraryCategoryDrag(event, ${item.originalIndex})" oncontextmenu="event.preventDefault()" style="touch-action:none; -webkit-user-select:none; user-select:none" title="Kéo sang nhóm cơ khác" class="library-exercise-chip inline-flex items-center gap-1.5 max-w-full bg-slate-800/90 border border-slate-700 rounded-lg pl-2.5 pr-1.5 py-1.5 cursor-grab active:cursor-grabbing">
                             <span class="text-[11px] font-semibold text-slate-200 break-words">${escapeHtml(item.name)}</span>
                             <button type="button" aria-label="Xóa ${escapeHtml(item.name)} khỏi kho" title="Xóa bài tập" onclick="removeExerciseFromLibrary(${item.originalIndex})" class="shrink-0 text-slate-500 hover:text-rose-400 px-0.5 transition-colors">
                                 <i class="fa-solid fa-xmark"></i>
@@ -3561,11 +3687,17 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const rect = card.getBoundingClientRect();
             let x = event.clientX, y = event.clientY, target = null, frame = null, done = false, lastTime = null;
             const dx = x - rect.left, dy = y - rect.top;
-            const ghost = document.createElement('div');
-            ghost.textContent = item.name;
-            ghost.className = 'bg-slate-800 border border-emerald-400 rounded-lg px-3 py-2 text-xs text-white shadow-xl';
-            Object.assign(ghost.style, {position:'fixed',top:'0',left:'0',pointerEvents:'none',zIndex:'9999',maxWidth:'75vw',willChange:'transform'});
-            document.body.appendChild(ghost);
+            const ghost = card.cloneNode(true);
+            ghost.removeAttribute('data-library-exercise');
+            ghost.setAttribute('aria-hidden', 'true');
+            ghost.setAttribute('inert', '');
+            Object.assign(ghost.style, {
+                position: 'fixed', top: '0', left: '0', margin: '0',
+                width: rect.width + 'px', height: rect.height + 'px', maxWidth: 'none',
+                pointerEvents: 'none', zIndex: '9999', willChange: 'transform',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.35)'
+            });
+            document.getElementById('libraryPage').appendChild(ghost);
             card.style.opacity = '0.35';
             root.setPointerCapture(pointerId);
             function highlight(next) {
@@ -3576,24 +3708,15 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             }
             function paint() {
                 ghost.style.transform = 'translate3d(' + (x-dx) + 'px,' + (y-dy) + 'px,0)';
-                const el = document.elementFromPoint(x,y);
+                const { top, bottom } = managementDragBounds(scroller);
+                const el = y >= top && y < bottom ? document.elementFromPoint(x,y) : null;
                 const zone = el && el.closest('[data-library-category]');
                 highlight(zone && library.contains(zone) ? zone : null);
             }
             function tick(time) {
                 if (!card.isConnected || window.appData.activeTab !== 'library') { finish(null,false); return; }
                 const dt = Math.min(32, lastTime === null ? 16 : time-lastTime); lastTime = time;
-                if (scroller) {
-                    const r = scroller.getBoundingClientRect(), edge = Math.min(56,r.height/4);
-                    if (y >= r.top && y <= r.bottom && x >= r.left && x <= r.right) {
-                        const speed = y < r.top+edge ? -(r.top+edge-y)/edge : (y > r.bottom-edge ? (y-r.bottom+edge)/edge : 0);
-                        scroller.scrollTop += speed * 600 * dt / 1000;
-                    }
-                } else {
-                    const edge = 60;
-                    const speed = y < edge ? -(edge - y) / edge : Math.max(0, y - innerHeight + edge) / edge;
-                    if (speed) window.scrollBy(0, speed * 600 * dt / 1000);
-                }
+                scrollManagementDrag(scroller, y, dt / 1000);
                 paint(); frame = requestAnimationFrame(tick);
             }
             function move(e) { if (e.pointerId !== pointerId) return; x=e.clientX; y=e.clientY; e.preventDefault(); }
@@ -3704,7 +3827,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             let html = `<datalist id="routineExerciseSuggestions">${(window.appData.exerciseLibrary || []).map(e => `<option value="${String(e.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}"></option>`).join('')}</datalist>`;
             routines.forEach((r, rIndex) => {
                 html += `
-                    <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-3">
+                    <div class="routine-card bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-3">
                         <div class="flex justify-between items-center gap-2">
                             <input type="text" value="${r.name || ''}" placeholder="Tên mẫu buổi tập..." onchange="updateRoutineName(${rIndex}, this.value)" class="bg-transparent text-xs font-bold text-emerald-400 focus:outline-none focus:border-b border-emerald-500 w-full">
                             <button onclick="deleteRoutineTemplate(${rIndex})" class="text-slate-600 hover:text-rose-400 p-1 text-xs">
@@ -3715,7 +3838,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         <div class="space-y-1.5 pl-2 border-l-2 border-slate-800">
                             <div id="routineExercises_${rIndex}" class="space-y-1.5">
                             ${(r.exercises || []).map((ex, exIdx) => `
-                                <div data-routine-exercise-index="${exIdx}" class="flex items-center gap-2 px-2 py-1 rounded-lg">
+                                <div data-routine-exercise-index="${exIdx}" class="routine-exercise-row flex items-center gap-2 px-2 py-1 rounded-lg">
                                     <button type="button" data-routine-drag-handle title="Kéo để đổi thứ tự bài tập" aria-label="Kéo bài tập ${exIdx + 1}" onpointerdown="event.stopPropagation(); startRoutineExerciseReorder(event, ${rIndex}, ${exIdx})" oncontextmenu="event.preventDefault()" style="touch-action: none; -webkit-touch-callout: none;" class="shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-emerald-400 bg-slate-900 px-2 py-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"><svg width="12" height="20" viewBox="0 0 24 36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="pointer-events-none"><path d="M12 14V3m-5 5 5-5 5 5M3 18h18M12 22v11m-5-5 5 5 5-5"/></svg></button>
                                     <div class="relative flex-1 routine-predictive-container">
                                         <input type="text" value="${String(ex.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" placeholder="Nhập tên bài tập..." autocomplete="off"

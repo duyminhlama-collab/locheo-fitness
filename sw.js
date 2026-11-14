@@ -1,7 +1,7 @@
-/* Generated release: 2af952be1488b4ca. Rebuild with python tools/build-offline.py. */
+/* Generated release: 62de94d939aaad97. Rebuild with python tools/build-offline.py. */
 'use strict';
-const CACHE_NAME = 'locheofitness-shell-2af952be1488b4ca';
-const CORE = ["./session.html", "./index.html", "./manifest.webmanifest", "./assets/app.css", "./assets/icons/app-icon.png", "./assets/offline-storage.js", "./assets/track-wheel.css", "./assets/track-wheel.js", "./assets/vendor/chart-4.4.8.umd.js", "./assets/vendor/fontawesome/css/all.min.css", "./assets/vendor/fontawesome/webfonts/fa-brands-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-regular-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-solid-900.woff2", "./assets/vendor/fontawesome/webfonts/fa-v4compatibility.woff2", "./assets/vendor/THIRD_PARTY_NOTICES.txt"];
+const CACHE_NAME = 'locheofitness-shell-62de94d939aaad97';
+const CORE = ["./session.html", "./index.html", "./manifest.webmanifest", "./assets/app.css", "./assets/icons/app-icon.png", "./assets/offline-storage.js", "./assets/track-wheel.css", "./assets/track-wheel.js", "./assets/ui-system.css", "./assets/vendor/chart-4.4.8.umd.js", "./assets/vendor/fontawesome/css/all.min.css", "./assets/vendor/fontawesome/webfonts/fa-brands-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-regular-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-solid-900.woff2", "./assets/vendor/fontawesome/webfonts/fa-v4compatibility.woff2", "./assets/vendor/THIRD_PARTY_NOTICES.txt"];
 const root = new URL('./', self.location.href);
 const absolute = path => new URL(path, root).href;
 const paths = new Set(CORE.map(path => new URL(path,root).pathname));

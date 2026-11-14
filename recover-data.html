@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="vi">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cứu dữ liệu LoCheoFitness</title>
+<style>
+body { font: 16px system-ui; color: #e2e8f0; background: #0f172a; max-width: 36rem; margin: 2rem auto; padding: 1rem; }
+article { padding: 1rem; margin: .8rem 0; border: 1px solid #475569; border-radius: .8rem; }
+a { color: #67e8f9; }
+</style>
+<style>
+*{box-sizing:border-box}body{background:#0c1424;color:#e5edf7;line-height:1.65;margin:clamp(24px,8vh,80px) auto;padding:24px;max-width:600px}h1,h2{font-size:clamp(23px,5vw,30px);line-height:1.25;letter-spacing:-.03em}article{background:#192638;border:1px solid #33445b;padding:20px;border-radius:16px}button{min-height:44px;border-radius:12px;background:#192638;border-color:#41546d;font-weight:600}a{color:#67e8f9;text-underline-offset:4px}small{color:#a6b5c9}button:focus-visible,a:focus-visible{outline:2px solid #67e8f9;outline-offset:4px}button:disabled{opacity:.55}#status{padding:16px;border:1px solid #33445b;border-radius:14px;background:#192638}
+</style>
+
+<h1>Cứu dữ liệu</h1>
+<p>Kiểm tra và tải các bản dữ liệu còn trên trình duyệt này.</p>
+<div id="results" aria-live="polite">Đang đọc bộ nhớ trên máy…</div>
+<script src="./assets/offline-storage.js"></script>
+<script>
+(async () => {
+    const results = document.getElementById('results');
+    await appStorage.ready();
+    const candidates = [
+        ['gym_group_tracker_backup_before_rollback', 'Bản trên máy trước khi D1 quay lui', 'before-rollback'],
+        ['gym_group_tracker_backup_before_join', 'Bản trước khi đổi nhóm', 'before-join'],
+        ['gym_group_tracker_data_v2', 'Bản đang lưu trên máy', 'current'],
+        ['gym_group_tracker_sync_state_v1', 'Bản đồng bộ gần nhất còn trên máy', 'sync-base']
+    ];
+    results.replaceChildren();
+    for (const [key, label, file] of candidates) {
+        const row = document.createElement('article');
+        const title = document.createElement('strong');
+        title.textContent = label;
+        row.append(title);
+        let data;
+        try {
+            const value = JSON.parse(appStorage.getItem(key));
+            data = file === 'sync-base' ? value?.base : value;
+        } catch (_) {}
+        if (!Array.isArray(data?.members)) {
+            row.append(document.createTextNode(' — Không tìm thấy bản dữ liệu.'));
+        } else {
+            const days = data.members.reduce((total, member) => total + Object.values(member.logs || {})
+                .filter(log => log?.exercises?.length).length, 0);
+            const stats = document.createElement('p');
+            stats.textContent = data.members.length + ' thành viên · ' + days + ' buổi có bài tập';
+            const download = document.createElement('a');
+            download.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}));
+            download.download = 'LoCheoFitness-' + file + '.json';
+            download.textContent = 'Tải JSON';
+            row.append(stats, download);
+        }
+        results.append(row);
+    }
+})().catch(() => {
+    document.getElementById('results').textContent = 'Không đọc được bộ nhớ của trình duyệt.';
+});
+</script>
+</html>
