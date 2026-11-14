@@ -32,12 +32,13 @@ body.track-layout #appContent { flex: 1; min-height: 0; overflow: hidden; displa
 #trackBottomActions button, #trackBottomActions select { width: 100%; min-width: 0; justify-content: center; padding: 10px 6px; font-size: 12px; }
 #trackBottomActions > div { min-width: 0; }
 #memberExercisesContainer.track-deck { flex: 1 1 0; height: auto; min-height: 0; overflow: hidden; overscroll-behavior: none; padding: 32px 5px; position: relative; isolation: isolate; }
-.track-deck > [data-exercise-index] { position: relative; z-index: 1; transform: translateZ(0); transition: border-color 160ms ease; }
+.track-deck > [data-exercise-index] { position: relative; z-index: 1; translate: 0 var(--track-edge-offset, 0px); transform: translateZ(0); transition: border-color 160ms ease; }
 #memberExercisesContainer.track-deck > [data-exercise-index] + [data-exercise-index] { margin-top: 8px; }
 .track-deck > [data-exercise-index].track-active { z-index: 3; border-color: #34d399; box-shadow: 0 0 0 1px #34d39955, 0 4px 10px #02061780; }
 @media (max-width: 639px) {
-    body.track-layout { padding-bottom: calc(54px + env(safe-area-inset-bottom)); }
+    body.track-layout { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
     body.track-layout #appContent { padding: 5px 7px; gap: 4px; }
+    #memberExercisesContainer.track-deck { padding-inline: clamp(14px, 4.5vw, 24px); }
     #trackMemberContent, #trackMemberContent > div { gap: 4px; }
     #trackMemberSelector > div:first-child { display: none; }
     #trackMemberSelector > div:nth-child(2) { max-width: 105px; }
@@ -57,7 +58,8 @@ body.track-layout #appContent { flex: 1; min-height: 0; overflow: hidden; displa
     body.track-keyboard > header, body.track-keyboard > header + div, body.track-keyboard #trackMemberSelector, body.track-keyboard #memberProfileHeader, body.track-keyboard #memberTrendPanel, body.track-keyboard #trackBottomActions, body.track-keyboard #mobileNavigationDock { display: none; }
     body.track-keyboard #appContent { padding: 0 5px; }
     body.track-keyboard #memberExercisesContainer.track-deck { position: relative; flex: 1 1 0; min-height: 0; background: #0f172a; }
-    body.track-layout #memberExercisesContainer input { font-size: 16px; }
+    body.track-layout #memberExercisesContainer input,
+    body.track-layout #memberExercisesContainer textarea { font-size: 16px; }
 }
 
 body.track-layout, #memberExercisesContainer.track-deck, .track-deck > [data-exercise-index] { overflow-anchor: none; }
@@ -89,8 +91,8 @@ body.track-layout .entry-suggestions { transition: none; }
 }
 @media (max-width: 639px) {
     #mobileNavigationDock {
-        height: calc(54px + env(safe-area-inset-bottom));
-        padding: 4px 7px calc(4px + env(safe-area-inset-bottom));
+        height: calc(64px + env(safe-area-inset-bottom));
+        padding: 4px 7px calc(14px + env(safe-area-inset-bottom));
         gap: 5px;
         background: #101a2c;
         border-color: #334155;

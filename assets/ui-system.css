@@ -1,0 +1,95 @@
+/* LoCheoFitness visual system. Wheel geometry and keyboard lifecycle stay in track-wheel.*. */
+:root { color-scheme: dark; --ui-bg:#0c1424; --ui-panel:#192638; --ui-border:#33445b; --ui-muted:#a6b5c9; --ui-accent:#6ee7b7; }
+body { background-color:var(--ui-bg); color:#e5edf7; font-feature-settings:"cv02","cv03","cv04","cv11"; }
+body > header { background:#101b2d; border-color:var(--ui-border); }
+body > header + div { background:#101b2d; }
+.bg-cardbg { background-color:var(--ui-panel); }
+.border-cardborder { border-color:var(--ui-border); }
+.text-slate-400 { color:var(--ui-muted); }
+input, select, textarea { accent-color:var(--ui-accent); }
+input::placeholder, textarea::placeholder { color:#94a3b8; opacity:1; }
+button, a, select { -webkit-tap-highlight-color:transparent; }
+:where(button,a,input,select,textarea):focus-visible { outline:2px solid #67e8f9 !important; outline-offset:3px; }
+button:disabled { opacity:.45; cursor:not-allowed; }
+:where(input,select,textarea):disabled { opacity:.65; }
+/* Overview: readable hierarchy, calm surfaces, consistent card rhythm. */
+body:not(.track-layout) #appContent { padding:24px; }
+body:not(.track-layout) #appContent .bg-cardbg { box-shadow:0 6px 18px #02061724; border-radius:18px; padding:20px; }
+body:not(.track-layout) #appContent h2 { font-size:clamp(18px,2vw,23px); line-height:1.35; letter-spacing:-.025em; }
+body:not(.track-layout) #appContent h2 + p { margin-top:6px; font-size:13px; line-height:1.6; }
+body:not(.track-layout) #appContent h3 { font-size:13px; line-height:1.5; }
+body:not(.track-layout) #appContent h3 + span { flex-shrink:0; white-space:nowrap; margin-left:10px; }
+body:not(.track-layout) #appContent h3 #overviewExTitle { display:contents; }
+body:not(.track-layout) #appContent h3:has(#overviewExTitle) { display:block; }
+body:not(.track-layout) #appContent h3 i { margin-right:4px; }
+#overviewExerciseInput { min-height:44px; background:#101b2d; }
+.chart-container { margin-top:16px; }
+/* Library / schedule share a form language, without enlarging dense workout inputs. */
+.management-page { max-width:76rem; padding:24px; }
+.management-page > .bg-cardbg { padding:24px; border-radius:18px; box-shadow:0 6px 18px #02061724; }
+.management-page h3 { font-size:18px; letter-spacing:-.025em; }
+.management-page h4 { font-size:13px; line-height:1.5; letter-spacing:.025em; }
+.management-page p { font-size:13px; line-height:1.6; }
+.management-page :where(input:not([type=checkbox]),select) { min-height:44px; font-size:14px; border-color:#41546d; background-color:#101b2d; }
+.management-page button { min-height:40px; }
+.management-page :where(.flex.justify-between) { gap:12px; flex-wrap:wrap; }
+#weeklyScheduleInputs { gap:12px; }
+#weeklyScheduleInputs > * { min-width:0; }
+#weeklyScheduleInputs select { width:100%; }
+#exerciseLibraryList > div { border-color:var(--ui-border); }
+/* Dialogs remain usable on short screens and with a software keyboard. */
+[id$="Modal"] > .bg-cardbg { max-height:calc(100dvh - 32px); overflow-y:auto; overscroll-behavior:contain; border-radius:20px; border-color:#41546d; box-shadow:0 24px 80px #02061780; }
+[id$="Modal"] :where(input:not([type=checkbox]),select,textarea) { font-size:16px; min-height:44px; }
+[id$="Modal"] button { min-height:40px; }
+[id$="Modal"] p { line-height:1.6; }
+/* Track keeps its existing dimensions, spacing, transforms and focus behavior. */
+.track-profile { background:#192638; border-color:#384b63; }
+#trackMemberSelector { background:#142237; border-color:#334b65; box-shadow:none; }
+#trackMemberSelector > div:nth-child(2) > div { color:#7dd3fc; }
+.track-deck > [data-exercise-index] { background:#1b2a3e; border-color:#455970; }
+#memberExercisesContainer :where(input,textarea) { caret-color:#6ee7b7; }
+#memberExercisesContainer textarea { width:calc(100% - 10px); margin-inline:5px; border-color:#455970; background:#101b2d; }
+#memberExercisesContainer :is(input, textarea):focus { outline:none !important; --tw-ring-shadow:0 0 #0000; --tw-ring-offset-shadow:0 0 #0000; }
+#memberExercisesContainer [data-exercise-index] input[type="number"]:focus { border-color:#34d399; }
+#memberExercisesContainer :is(select, button, summary):focus { outline:none !important; border-color:#64748b; --tw-ring-shadow:0 0 #0000; }
+#memberExercisesContainer :is(select, button, summary):focus-visible { outline:2px solid #94a3b8 !important; outline-offset:1px; }
+#trackBottomActions button, #trackBottomActions select { border-radius:12px; }
+@media (hover:hover) {
+  button { transition:background-color 140ms ease,border-color 140ms ease,color 140ms ease; }
+  .management-page button:hover { border-color:#64809d; }
+}
+@media (max-width:639px) {
+  body:not(.track-layout) #appContent { padding:14px 12px 24px; }
+  body:not(.track-layout) #appContent .bg-cardbg { padding:16px; border-radius:16px; }
+  .management-page { padding:14px 12px 24px; }
+  .management-page > .bg-cardbg { padding:16px; border-radius:16px; }
+  .management-page h3 { font-size:17px; }
+  .management-page :where(.flex.justify-between) > h4 { flex:1 1 160px; }
+  #mobileNavigationDock { background:#101b2d; border-top-color:#3b4c63; }
+  #mobileNavigationDock button { border-radius:11px; }
+  #mobileNavigationDock button[aria-current="page"] { box-shadow:inset 0 0 0 1.5px var(--dock-color); }
+  [id$="Modal"] > .bg-cardbg { padding:20px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  button, input, select, textarea { transition:none !important; }
+}
+
+/* Compact library chips and clearer boundaries between workout templates. */
+#libraryPage .library-exercise-chip { padding-block:2px; }
+#libraryPage .library-exercise-chip button { min-height:28px; min-width:28px; }
+#routinesListContainer > .routine-card {
+  margin-top:16px;
+  border-color:#41546d;
+  background:#152237;
+}
+#routinesListContainer > .routine-card:first-of-type { margin-top:0; }
+.routine-card > :first-child {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  padding-bottom:8px;
+  border-bottom:1px solid #41546d;
+}
+.routine-card > :first-child > input { min-width:0; padding-inline:8px; }
+#schedulePage .routine-exercise-row { background:#192a40; }
+#schedulePage .routine-predictive-container { min-width:0; }
+#schedulePage > .bg-cardbg { border:0; background:transparent; box-shadow:none; }

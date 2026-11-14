@@ -10,6 +10,7 @@
         let cards = [], active = 0, frame = 0, touch = null;
         let wheelLast = 0, wheelSum = 0, wheelUsed = false, movingUntil = 0;
         let suppressClickUntil = 0;
+        let editingScroll = null, restingScroll = null;
         const topInset = card => Math.max(16, (root.clientHeight - card.offsetHeight) / 2);
         const bounds = index => {
             const card = cards[index];
@@ -41,6 +42,7 @@
                     break;
                 }
             }
+            if (keyboardOpen) visualIndex = active;
             cards.forEach((card, index) => {
                 const distance = Math.abs(index - visualIndex);
                 const hidden = distance >= 3;
@@ -77,28 +79,39 @@
         }
         function queuePaint() { if (!frame) frame = requestAnimationFrame(() => paint()); }
         let glideFrame = 0;
+        let edgeOffset = 0;
+        function setEdgeOffset(offset) {
+            edgeOffset = offset;
+            if (offset) root.style.setProperty('--track-edge-offset', offset + 'px');
+            else root.style.removeProperty('--track-edge-offset');
+        }
         function scroll(top, smooth = true, velocity = 0) {
             cancelAnimationFrame(glideFrame);
             glideFrame = 0;
             const target = Math.max(0, Math.min(top, root.scrollHeight - root.clientHeight));
             if (!cachedRanges) cachedRanges = cards.map((_, index) => bounds(index));
             const from = root.scrollTop;
+            const initialOffset = edgeOffset;
             const distance = target - from;
-            if (!smooth || reduced() || Math.abs(distance) < 2) {
-                if (smooth) layerAnchor = active;
+            if (!smooth || reduced() || (Math.abs(distance) < 2 && !initialOffset)) {
+                if (smooth) {
+                    layerAnchor = active;
+                    setEdgeOffset(0);
+                }
                 root.scrollTop = target;
                 queuePaint();
                 return 0;
             }
             const speed = Math.abs(velocity);
             const duration = speed > .1 ? Math.min(560, Math.max(180, 3 * Math.abs(distance) / speed)) : Math.min(420, Math.max(240, 190 + Math.abs(distance) * .55));
-            const initialSlope = Math.max(0, Math.min(3, velocity * duration / distance));
+            const initialSlope = Math.max(0, Math.min(3, distance ? velocity * duration / distance : 0));
             const started = performance.now();
             function glide(now) {
                 const progress = Math.min(1, (now - started) / duration);
                 const eased = velocity ? progress ** 2 * (3 - 2 * progress) + initialSlope * progress * (1 - progress) ** 2 : 1 - (1 - progress) ** 3;
                 const position = from + distance * eased;
                 root.scrollTop = position;
+                if (initialOffset) setEdgeOffset(initialOffset * (1 - progress) ** 3);
                 cancelAnimationFrame(frame);
                 if (progress === 1) layerAnchor = active;
                 paint(position);
@@ -159,11 +172,12 @@
             touch = null;
             if (keyboardOpen || event.touches.length !== 1 ||
                 event.target.closest('[data-track-drag-handle]') || nestedScroll(event.target, 0) || !cards.length) return;
-            cancelAnimationFrame(glideFrame);
-            glideFrame = 0;
-            movingUntil = 0;
             const p = event.touches[0];
-            touch = {x: p.clientX, y: p.clientY, top: root.scrollTop, dy: 0, dragging: false, reading: false, samples: [{dy: 0, time: performance.now()}]};
+            touch = {
+                x: p.clientX, y: p.clientY, top: root.scrollTop,
+                startedDuringGlide: glideFrame !== 0, dragging: false,
+                samples: [{dy: 0, time: performance.now()}]
+            };
         }, {passive: true});
         on('touchmove', event => {
             if (!touch || event.touches.length !== 1) { touch = null; return; }
@@ -171,59 +185,101 @@
             if (!touch.dragging && (Math.abs(dy) < 8 || Math.abs(dx) > Math.abs(dy))) return;
             if (!event.cancelable) { touch = null; return; }
             event.preventDefault();
+            if (!touch.dragging && touch.startedDuringGlide) {
+                // Pick up from the current frame without replaying the dead zone.
+                const stretch = Math.min(71.99, Math.abs(edgeOffset));
+                const overshoot = Math.sign(edgeOffset) * 144 * stretch / (72 - stretch);
+                touch.top = root.scrollTop - dy - overshoot;
+            }
             touch.dragging = true;
-            touch.dy = dy;
+            movingUntil = 0;
             const now = performance.now();
             touch.samples.push({dy, time: now});
             while (touch.samples.length > 1 && now - touch.samples[0].time > 100) touch.samples.shift();
-            const range = bounds(active);
-            touch.reading = canReadMore(Math.sign(dy), touch.top);
-            if (touch.reading) {
-                scroll(Math.max(range.start, Math.min(range.end, touch.top + dy)), false);
-            } else {
-                scroll(touch.top + dy, false);
-            }
+            const requested = touch.top + dy;
+            scroll(requested, false);
+            const limit = Math.max(0, root.scrollHeight - root.clientHeight);
+            const excess = requested - Math.max(0, Math.min(limit, requested));
+            setEdgeOffset(reduced() ? 0 : -72 * excess / (144 + Math.abs(excess)));
         }, {passive: false});
-        function endTouch(cancelled) {
+        function endTouch(event, cancelled) {
             if (!touch) return;
             const gesture = touch;
             touch = null;
-            if (!gesture.dragging) return;
+            if (!gesture.dragging) {
+                if (gesture.startedDuringGlide || glideFrame) {
+                    if (event.cancelable) event.preventDefault();
+                    suppressClickUntil = performance.now() + 400;
+                }
+                return;
+            }
             suppressClickUntil = performance.now() + 400;
-            if (gesture.reading) return;
             const first = gesture.samples[0], last = gesture.samples.at(-1);
             const elapsed = last.time - first.time;
             const velocity = elapsed > 0 && performance.now() - last.time < 90
                 ? (last.dy - first.dy) / elapsed : 0;
-            if (cancelled) { scroll(gesture.top); return; }
-            const projected = root.scrollTop + velocity * 150;
+            if (cancelled) {
+                const range = bounds(active);
+                scroll(Math.max(range.start, Math.min(range.end, root.scrollTop)));
+                return;
+            }
+            const projected = root.scrollTop + (reduced() ? 0 : velocity * 180);
             let nearest = active, nearestDistance = Infinity;
             cards.forEach((_, index) => {
                 const range = bounds(index);
                 const distance = Math.max(range.start - projected, 0, projected - range.end);
                 if (distance < nearestDistance) { nearest = index; nearestDistance = distance; }
             });
-            choose(nearest, true, velocity);
+            if (nearest === active) {
+                const range = bounds(active);
+                scroll(Math.max(range.start, Math.min(range.end, projected)), true, velocity);
+            } else {
+                choose(nearest, true, velocity);
+            }
         }
-        on('touchend', () => endTouch(false));
-        on('touchcancel', () => endTouch(true));
+        on('touchend', event => endTouch(event, false), {passive: false});
+        on('touchcancel', event => endTouch(event, true));
         on('click', event => {
-            if (performance.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); return; }
+            if (glideFrame || performance.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); return; }
             const card = event.target.closest('[data-exercise-index]');
             if (!card || event.target.closest('input, button, summary, a')) return;
             const index = cards.indexOf(card);
             if (index >= 0 && index !== active) choose(index);
         }, {capture: true});
+        let noteTap = null;
         on('pointerdown', event => {
             const input = event.target;
-            if (!keyboardOpen || event.pointerType !== 'touch' || !event.isPrimary ||
-                !input.matches('input[type="number"]') || !cards[active]?.contains(input) ||
-                input === document.activeElement) return;
+            if (event.pointerType !== 'touch' || !event.isPrimary ||
+                !cards[active]?.contains(input) || input === document.activeElement) return;
 
-            // Reuse the open keyboard without Safari panning to the next field.
-            // The layout handler reveals the field only if it is clipped.
+            if (glideFrame) {
+                event.preventDefault();
+                return;
+            }
+            if (input.matches('textarea')) {
+                event.preventDefault();
+                noteTap = { input, id: event.pointerId, x: event.clientX, y: event.clientY };
+                return;
+            }
+            if (!keyboardOpen || !input.matches('input[type="number"]')) return;
             event.preventDefault();
             input.focus({preventScroll: true});
+        });
+        function noteTapMoved(event) {
+            return Math.hypot(event.clientX - noteTap.x, event.clientY - noteTap.y) >= 8;
+        }
+        on('pointermove', event => {
+            if (noteTap?.id === event.pointerId && noteTapMoved(event)) noteTap = null;
+        });
+        on('pointercancel', event => {
+            if (noteTap?.id === event.pointerId) noteTap = null;
+        });
+        on('pointerup', event => {
+            if (noteTap?.id !== event.pointerId) return;
+            const { input } = noteTap;
+            const isTap = !noteTapMoved(event);
+            noteTap = null;
+            if (isTap && cards[active]?.contains(input)) input.focus({preventScroll: true});
         });
         on('focusin', event => {
             const index = cards.indexOf(event.target.closest('[data-exercise-index]'));
@@ -240,16 +296,16 @@
             cachedRanges = null;
             paintedPosition = undefined;
             if (!root.isConnected || !cards.length) return;
-            root.style.paddingTop = topInset(cards[0]) + 'px';
-            root.style.paddingBottom = topInset(cards[cards.length - 1]) + 'px';
-            if (document.body.classList.contains('track-keyboard')) {
-                const input = document.activeElement;
-                const card = cards[active];
-                if (card && root.contains(card)) {
-                    if (!card.contains(input)) return;
-                    const field = input.getBoundingClientRect(), area = root.getBoundingClientRect();
-                    if (field.top < area.top + 12) scroll(root.scrollTop + field.top - area.top - 12, false);
-                    else if (field.bottom > area.bottom - 12) scroll(root.scrollTop + field.bottom - area.bottom + 12, false);
+            if (keyboardOpen) {
+                // One scroll position for the entire editing session.
+                if (editingScroll === null) editingScroll = Math.max(0, cards[active].offsetTop - 12);
+                root.scrollTop = editingScroll;
+            } else {
+                root.style.paddingTop = topInset(cards[0]) + 'px';
+                root.style.paddingBottom = topInset(cards[cards.length - 1]) + 'px';
+                if (restingScroll !== null) {
+                    root.scrollTop = restingScroll;
+                    restingScroll = null;
                 }
             }
             queuePaint();
@@ -281,7 +337,7 @@
         let restingHeight = viewport?.height || innerHeight;
         let viewportWidth = innerWidth;
         let keyboardOpen = false;
-        let previousHeight = restingHeight;
+        let keyboardSlide;
         let layoutFrame = 0;
         function scheduleLayout() {
             if (!layoutFrame) layoutFrame = requestAnimationFrame(() => {
@@ -297,13 +353,19 @@
                 // A move between fields resolves before this frame. A real blur can
                 // restore Track immediately, without waiting for the keyboard animation.
                 const lostHeight = restingHeight - height;
-                // Use the direction of the viewport animation to enter early
-                // and exit early without switching modes repeatedly in between.
-                const nextOpen = mobile.matches && editing && (keyboardOpen
-                    ? !(height > previousHeight && lostHeight <= 130)
-                    : height < previousHeight && lostHeight > 55);
-                previousHeight = height;
+                // A keyboard type change can briefly grow the viewport.
+                // Keep the editing session until it is almost fully restored.
+                const nextOpen = mobile.matches && editing && lostHeight > (keyboardOpen ? 24 : 55);
+                const openingCard = nextOpen && !keyboardOpen && !reduced() ? cards[active] : null;
+                const previousTop = openingCard?.getBoundingClientRect().top;
                 if (nextOpen !== keyboardOpen) {
+                    keyboardSlide?.cancel();
+                    keyboardSlide = null;
+                    if (nextOpen) restingScroll = root.scrollTop;
+                    editingScroll = null;
+                    cancelAnimationFrame(glideFrame);
+                    glideFrame = 0;
+                    setEdgeOffset(0);
                     keyboardOpen = nextOpen;
                     touch = null;
                     movingUntil = 0;
@@ -317,8 +379,23 @@
                     document.body.style.removeProperty('--keyboard-top');
                 }
                 layout();
+                if (openingCard) {
+                    // Lock the editing layout immediately and animate only its visual offset.
+                    const offset = previousTop - openingCard.getBoundingClientRect().top;
+                    if (Math.abs(offset) > 1) {
+                        keyboardSlide = openingCard.animate(
+                            [{translate: '0 ' + offset + 'px'}, {translate: '0 0px'}],
+                            {duration: 260, easing: 'cubic-bezier(0.25, 0.65, 0.35, 1)'}
+                        );
+                    }
+                }
             });
         }
+        on('scroll', () => {
+            if (keyboardOpen && editingScroll !== null && Math.abs(root.scrollTop - editingScroll) > 1) {
+                root.scrollTop = editingScroll;
+            }
+        });
         on('focusout', scheduleLayout);
         viewport?.addEventListener('scroll', scheduleLayout, {signal: controller.signal});
         viewport?.addEventListener('resize', scheduleLayout, {signal: controller.signal});
@@ -327,7 +404,7 @@
         root.tabIndex = 0;
         root.setAttribute('aria-label', 'Bài tập: vuốt đủ xa hoặc cuộn để chuyển từng bài');
         update();
-        return {update, destroy() { controller.abort(); observer.disconnect(); cancelAnimationFrame(frame); cancelAnimationFrame(layoutFrame); cancelAnimationFrame(glideFrame); document.body.classList.remove('track-layout', 'track-keyboard'); document.body.style.removeProperty('--keyboard-top'); document.body.style.removeProperty('--track-height'); }};
+        return {update, destroy() { controller.abort(); observer.disconnect(); keyboardSlide?.cancel(); setEdgeOffset(0); cancelAnimationFrame(frame); cancelAnimationFrame(layoutFrame); cancelAnimationFrame(glideFrame); document.body.classList.remove('track-layout', 'track-keyboard'); document.body.style.removeProperty('--keyboard-top'); document.body.style.removeProperty('--track-height'); }};
     }
     function init() {
         const next = document.getElementById('memberExercisesContainer');
