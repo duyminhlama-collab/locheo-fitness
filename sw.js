@@ -1,6 +1,6 @@
-/* Generated release: 6c46095a750a6c9e. Rebuild with python tools/build-offline.py. */
+/* Generated release: f9fa679b9d5b3e9f. Rebuild with python tools/build-offline.py. */
 'use strict';
-const CACHE_NAME = 'locheofitness-shell-6c46095a750a6c9e';
+const CACHE_NAME = 'locheofitness-shell-f9fa679b9d5b3e9f';
 const CORE = ["./session.html", "./index.html", "./manifest.webmanifest", "./assets/app.css", "./assets/icons/app-icon.png", "./assets/offline-storage.js", "./assets/track-wheel.css", "./assets/track-wheel.js", "./assets/ui-system.css", "./assets/vendor/chart-4.4.8.umd.js", "./assets/vendor/fontawesome/css/all.min.css", "./assets/vendor/fontawesome/webfonts/fa-brands-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-regular-400.woff2", "./assets/vendor/fontawesome/webfonts/fa-solid-900.woff2", "./assets/vendor/fontawesome/webfonts/fa-v4compatibility.woff2", "./assets/vendor/THIRD_PARTY_NOTICES.txt"];
 const root = new URL('./', self.location.href);
 const absolute = path => new URL(path, root).href;
@@ -67,8 +67,8 @@ self.addEventListener('fetch', event => {
     })());
 });
 
-// Explicit recovery only; normal updates still wait until the workout is closed.
+// A client can activate an installed update once it is ready to reload.
 self.addEventListener('message', event => {
-    if (event.data && event.data.type === 'LCF_RECOVER_ACTIVATE') event.waitUntil(self.skipWaiting());
+    if (event.data && ['LCF_RECOVER_ACTIVATE', 'LCF_AUTO_ACTIVATE'].includes(event.data.type)) event.waitUntil(self.skipWaiting());
     if (event.data && event.data.type === 'LCF_REDIRECT_SAFE' && event.ports[0]) event.ports[0].postMessage({redirectSafe:true});
 });

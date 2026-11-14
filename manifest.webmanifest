@@ -2,7 +2,7 @@
   "id": "./",
   "name": "LOCHEOFITNESS",
   "short_name": "LoCheoFitness",
-  "start_url": "./session",
+  "start_url": "./session.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0f172a",

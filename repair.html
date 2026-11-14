@@ -2,7 +2,7 @@
 <style>
 *{box-sizing:border-box}body{background:#0c1424;color:#e5edf7;line-height:1.65;margin:clamp(24px,8vh,80px) auto;padding:24px;max-width:600px}h1,h2{font-size:clamp(23px,5vw,30px);line-height:1.25;letter-spacing:-.03em}article{background:#192638;border:1px solid #33445b;padding:20px;border-radius:16px}button{min-height:44px;border-radius:12px;background:#192638;border-color:#41546d;font-weight:600}a{color:#67e8f9;text-underline-offset:4px}small{color:#a6b5c9}button:focus-visible,a:focus-visible{outline:2px solid #67e8f9;outline-offset:4px}button:disabled{opacity:.55}#status{padding:16px;border:1px solid #33445b;border-radius:14px;background:#192638}
 </style>
-<h2>Cập nhật LOCHEOFITNESS</h2><p id="status">Trang sẽ tự cập nhật và mở lại app. Hãy giữ kết nối mạng.</p><p><button id="repair">Thử lại</button></p><small>Chỉ cập nhật phần ứng dụng. Không xóa nhật ký, nhóm, routine hoặc dữ liệu trên máy.</small><p><a href="./session">Mở app</a></p><script>
+<h2>Cập nhật LOCHEOFITNESS</h2><p id="status">Trang sẽ tự cập nhật và mở lại app. Hãy giữ kết nối mạng.</p><p><button id="repair">Thử lại</button></p><small>Chỉ cập nhật phần ứng dụng. Không xóa nhật ký, nhóm, routine hoặc dữ liệu trên máy.</small><p><a href="./session.html">Mở app</a></p><script>
 const button=document.getElementById('repair'),statusText=document.getElementById('status');
 button.onclick=async()=>{
  button.disabled=true;statusText.textContent='Đang tải bản sửa. Hãy giữ trang này mở…';
@@ -26,7 +26,7 @@ button.onclick=async()=>{
     }
    },150);
   });
-  statusText.textContent='Đã cập nhật. Đang mở app…';location.replace('./session');
+  statusText.textContent='Đã cập nhật. Đang mở app…';location.replace('./session.html');
  }catch(error){statusText.textContent='Chưa cập nhật được: '+error.message;button.disabled=false;}
 };
 button.click();

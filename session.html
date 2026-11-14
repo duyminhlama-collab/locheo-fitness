@@ -249,7 +249,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     <i class="fa-solid fa-calendar-days text-sm"></i>
                     <span class="hidden sm:inline">Lịch Tập</span>
                 </button>
-                <button type="button" onclick="openAddMemberModal()" aria-label="Thêm người" title="Thêm người" class="sm:hidden h-[30px] w-[30px] shrink-0 inline-flex items-center justify-center p-0 bg-emerald-600 border border-emerald-500/30 text-white rounded-xl">
+                <button type="button" onclick="openAddMemberModal()" aria-label="Thêm người" title="Thêm người" class="sm:hidden h-[33px] w-[33px] shrink-0 inline-flex items-center justify-center p-0 bg-emerald-600 border border-emerald-500/30 text-white rounded-xl">
                     <i class="fa-solid fa-user-plus fa-fw text-xs" aria-hidden="true"></i>
                 </button>
                 <button id="pwaInstallBtn" onclick="triggerPwaInstall()" title="Cài ứng dụng" class="hidden p-2 sm:px-3 sm:py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-900/30">
@@ -441,7 +441,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
     <!-- Trang Kho bài -->
     <div id="libraryPage" class="management-page hidden">
-        <div class="bg-cardbg border border-cardborder rounded-2xl w-full p-3 sm:p-5">
+        <div class="library-page-content w-full">
             <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
                 <h3 class="text-base font-bold text-white flex items-center gap-2">
                     <i class="fa-solid fa-book-bookmark text-amber-400"></i> Kho bài tập
@@ -449,8 +449,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             </div>
 
             <div class="space-y-4">
-                <div class="bg-slate-900/80 p-3.5 border border-slate-800 rounded-xl space-y-3">
-                    <h4 class="text-xs font-bold text-amber-300 uppercase">Thêm bài tập Vào Kho</h4>
+                <div class="bg-[#1c2433] p-3.5 border border-amber-400/70 rounded-xl space-y-3">
+                    <h4 class="text-sm font-bold text-amber-300 uppercase">Thêm bài tập Vào Kho</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(170px,0.52fr)] gap-2">
                         <input type="text" id="libNewExName" aria-label="Tên bài tập mới" placeholder="Tên bài (VD: Bulgarian Split Squat)" class="min-w-0 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
                         <select id="libNewExCategory" aria-label="Nhóm cơ" class="min-w-0 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-medium focus:outline-none">
@@ -471,7 +471,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         </select>
                     </div>
                     <label class="inline-flex items-center gap-1.5 text-xs text-slate-300"><input id="libNewExBodyweight" type="checkbox" class="accent-emerald-400">Bodyweight</label>
-                    <button onclick="addExerciseToLibrary()" class="w-full py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold rounded-xl text-xs transition">
+                    <button onclick="addExerciseToLibrary()" class="w-full py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-xl text-xs transition">
                         + Lưu Vào Kho Bài Tập
                     </button>
                 </div>
@@ -1413,12 +1413,63 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             }, 3000);
         }
 
+        let serviceWorkerRegistration;
         function registerServiceWorker() {
             if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
-            navigator.serviceWorker.register('./sw.js', {scope:'./',updateViaCache:'none'})
+            if (serviceWorkerRegistration) {
+                serviceWorkerRegistration.update().catch(() => {});
+                return;
+            }
+            navigator.serviceWorker.register('./sw.js', {scope:'./', updateViaCache:'none'})
+                .then(registration => {
+                    if (serviceWorkerRegistration) return;
+                    serviceWorkerRegistration = registration;
+                    let previousController = navigator.serviceWorker.controller;
+                    let reloadPending = false;
+                    function offerUpdate() {
+                        if (document.hidden || document.activeElement?.matches('input, textarea, select, [contenteditable]') ||
+                            document.querySelector('[id$="Modal"]:not(.hidden)')) return;
+                        if (!reloadPending && (!registration.waiting || !navigator.serviceWorker.controller)) return;
+                        try {
+                            saveLocalDataOnly();
+                        } catch (error) {
+                            console.warn('App update deferred until local data can be saved:', error);
+                            return;
+                        }
+                        if (reloadPending) {
+                            reloadPending = false;
+                            location.reload();
+                        } else {
+                            registration.waiting.postMessage({type:'LCF_AUTO_ACTIVATE'});
+                        }
+                    }
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        const controller = navigator.serviceWorker.controller;
+                        if (previousController && controller && controller !== previousController) reloadPending = true;
+                        previousController = controller;
+                        offerUpdate();
+                    });
+                    document.addEventListener('focusout', () => setTimeout(offerUpdate, 0));
+                    document.addEventListener('visibilitychange', offerUpdate);
+                    setInterval(() => {
+                        if (document.hidden || !navigator.onLine) return;
+                        offerUpdate();
+                        registration.update().catch(() => {});
+                    }, 60000);
+                    function watchInstallation() {
+                        registration.installing?.addEventListener('statechange', offerUpdate);
+                    }
+                    registration.addEventListener('updatefound', watchInstallation);
+                    watchInstallation();
+                    offerUpdate();
+                    registration.update().catch(() => {});
+                })
                 .catch(error => console.warn('Offline cache not ready yet:', error));
         }
 
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) registerServiceWorker();
+        });
         window.addEventListener('online', registerServiceWorker);
 
         window.addEventListener('beforeinstallprompt', (e) => {
@@ -2836,8 +2887,13 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             });
             // Mỗi buổi: % thay đổi e1RM của từng bài so với buổi trước đó của chính bài đó
             const byDate = {};
+            const newExercisesByDate = new Map();
             names.forEach(name => {
                 const ss = suggGetSessions(member, name, loadAddDays(dateStr, 1));
+                const first = ss[0];
+                if (first && first.t >= dn - TREND_WINDOW_DAYS) {
+                    newExercisesByDate.set(first.date, (newExercisesByDate.get(first.date) || 0) + 1);
+                }
                 for (let i = 1; i < ss.length; i++) {
                     if (ss[i].t < dn - TREND_WINDOW_DAYS || !(ss[i - 1].eff > 0)) continue;
                     const exercises = member.logs[ss[i].date].exercises || [];
@@ -2853,7 +2909,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const pct = ch.reduce((sum, x) => sum + x.pct * x.weight, 0) / ch.reduce((sum, x) => sum + x.weight, 0);
                 const counts = { up: 0, flat: 0, down: 0 };
                 ch.forEach(x => { counts[trendLevelOf(x.pct)]++; });
-                return { date: d, pct: pct, n: ch.length, counts: counts, level: trendLevelOf(pct) };
+                return { date: d, pct: pct, n: ch.length, newCount: newExercisesByDate.get(d) || 0, counts: counts, level: trendLevelOf(pct) };
             });
             if (days.length < 2) return null;
             let weightedTotal = 0;
@@ -2879,7 +2935,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 <tr class="border-t border-slate-800">
                     <td class="px-2 py-1.5 whitespace-nowrap"><time datetime="${day.date}">${loadFmtDate(day.date)}</time></td>
                     <td class="px-2 py-1.5 text-right ${TREND_LEVELS[day.level].text}">${trendPctTxt(day.pct)}</td>
-                    <td class="px-2 py-1.5 text-right">${day.n}</td>
+                    <td class="px-2 py-1.5 text-right">${day.n} (${day.newCount})</td>
                     <td class="px-2 py-1.5 text-right">${Math.round(day.recencyWeight * 100)}%</td>
                 </tr>`).join('');
             return `<details class="border border-slate-700 bg-slate-900/60 rounded-lg text-xs">
@@ -2891,7 +2947,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         <thead class="sticky top-0 bg-slate-900"><tr>
                             <th scope="col" class="px-2 py-1.5 text-left">Ngày</th>
                             <th scope="col" class="px-2 py-1.5 text-right">Tăng/giảm</th>
-                            <th scope="col" class="px-2 py-1.5 text-right">Số bài</th>
+                            <th scope="col" class="px-2 py-1.5 text-right">Số bài cũ (Số bài mới)</th>
                             <th scope="col" class="px-2 py-1.5 text-right">Trọng số</th>
                         </tr></thead>
                         <tbody>${rows}</tbody>
@@ -3278,7 +3334,34 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             showToast(`Đã điền gợi ý cho ${filled} set`);
         }
 
-        function renderMemberExerciseList(member, currentLog) {
+        function renderExerciseSetRow(member, ex, exIndex, s, setIndex, suggestDate) {
+            const estRM = exerciseSet1RM(member, ex.name, suggestDate, s.weight, s.reps, s.rir);
+            const rirVal = (s.rir === undefined || s.rir === null || s.rir === '') ? 0 : s.rir;
+            return `
+                <tr>
+                    <td class="py-1.5 font-mono font-bold text-slate-400">${setIndex + 1}</td>
+                    <td data-set-input-hit-area class="py-1.5 pr-1.5 cursor-pointer">
+                        <input data-weight-input type="number" inputmode="decimal" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
+                    </td>
+                    <td data-set-input-hit-area class="py-1.5 pr-1.5 cursor-pointer">
+                        <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
+                    </td>
+                    <td class="py-1.5 pr-1.5">
+                        <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1); updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'rir', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'rir', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none">
+                    </td>
+                    <td data-set-rm class="py-1.5 font-mono text-emerald-400 text-[10px] font-semibold whitespace-nowrap">
+                        ${estRM > 0 || (isBodyweightExercise(ex.name) && parseFloat(s.reps) > 0) ? estRM + ' kg' : '-'}
+                    </td>
+                    <td class="relative py-1.5 text-right">
+                        <button onpointerdown="event.preventDefault()" onclick="removeSetFromExercise('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex)" aria-label="Xóa set" class="absolute right-0 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center text-sm text-slate-600 hover:text-rose-400">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderMemberExerciseList(member, currentLog, startIndex = 0) {
             if (!currentLog.exercises || currentLog.exercises.length === 0) {
                 return `
                     <div class="bg-cardbg border border-dashed border-slate-700 rounded-2xl p-8 text-center text-slate-400">
@@ -3290,7 +3373,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             }
 
             const suggestDate = member.selectedDate || getTodayISODate();
-            return currentLog.exercises.map((ex, exIndex) => {
+            return currentLog.exercises.slice(startIndex).map((ex, index) => {
+                const exIndex = startIndex + index;
                 const transfer = getStrengthTransfer(member, ex.name, suggestDate);
                 const sug = getWeightSuggestion(member, ex.name, suggestDate, false, transfer);
                 const lastSession = getLastRecordedSession(member, ex.name, suggestDate);
@@ -3330,36 +3414,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                                         <th class="pb-1 font-semibold">REPS</th>
                                         <th class="pb-1 w-12 font-semibold text-center" title="Reps in reserve - số rep còn dư. Mặc định 0 = tập tới giới hạn">RIR</th>
                                         <th class="pb-1 w-[3.75rem] font-semibold" title="e1RM trung bình Epley, Brzycki và Lander; rep hiệu dụng = Rep + RIR < 37">1RM</th>
-                                        <th class="pb-1 w-6"></th>
+                                        <th class="pb-1 w-7"></th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-700/70">
-                                    ${(ex.sets || []).map((s, setIndex) => {
-                                        const estRM = exerciseSet1RM(member, ex.name, suggestDate, s.weight, s.reps, s.rir);
-                                        const rirVal = (s.rir === undefined || s.rir === null || s.rir === '') ? 0 : s.rir;
-                                        return `
-                                            <tr>
-                                                <td class="py-1.5 font-mono font-bold text-slate-400">${setIndex + 1}</td>
-                                                <td class="py-1.5 pr-1.5">
-                                                    <input data-weight-input type="number" inputmode="decimal" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
-                                                </td>
-                                                <td class="py-1.5 pr-1.5">
-                                                    <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
-                                                </td>
-                                                <td class="py-1.5 pr-1.5">
-                                                    <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1); updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, ${setIndex}, 'rir', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none">
-                                                </td>
-                                                <td data-set-rm class="py-1.5 font-mono text-emerald-400 text-[10px] font-semibold whitespace-nowrap">
-                                                    ${estRM > 0 || (isBodyweightExercise(ex.name) && parseFloat(s.reps) > 0) ? estRM + ' kg' : '-'}
-                                                </td>
-                                                <td class="py-1.5 text-right">
-                                                    <button onpointerdown="event.preventDefault()" onclick="removeSetFromExercise('${member.id}', ${exIndex}, ${setIndex})" class="text-slate-600 hover:text-rose-400 p-0.5">
-                                                        <i class="fa-solid fa-xmark"></i>
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        `;
-                                    }).join('')}
+                                    ${(ex.sets || []).map((s, setIndex) => renderExerciseSetRow(member, ex, exIndex, s, setIndex, suggestDate)).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -3369,7 +3428,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                             <textarea aria-label="Ghi chú" rows="2" maxlength="1000" placeholder="${escapeAttrValue(previousNote ? 'Buổi trước: ' + previousNote : '')}" oninput="updateExerciseNote('${member.id}', '${suggestDate}', ${exIndex}, this.value)" class="block w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-normal text-slate-100 placeholder:text-slate-500 focus:outline-none">${escapeTextValue(ex.note || '')}</textarea>
                         </div>
                         <div class="pt-0.5">
-                            <button onpointerdown="event.preventDefault()" onclick="addSetToExercise('${member.id}', ${exIndex})" class="px-2.5 py-1 bg-transparent hover:bg-slate-800 text-emerald-400 rounded-lg text-[11px] font-semibold border border-slate-500 transition">
+                            <button onpointerdown="event.preventDefault()" onclick="addSetToExercise('${member.id}', ${exIndex})" class="h-10 w-28 px-2 py-1 bg-transparent hover:bg-slate-800 text-emerald-400 rounded-lg whitespace-nowrap text-sm font-semibold border border-slate-500 transition">
                                 + Thêm Set
                             </button>
                         </div>
@@ -3410,10 +3469,10 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const safeName = String(e.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
                 const safeCat = String(EXERCISE_CATEGORIES[resolvedExerciseCategory(e)]).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 html += `
-                    <div onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="selectPredictiveExercise('${memberId}', ${exIndex}, '${encodeURIComponent(e.name || '')}')" class="px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex justify-between items-center border-b border-slate-800/40 last:border-0">
+                    <button type="button" onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="selectPredictiveExercise('${memberId}', ${exIndex}, this.dataset.exerciseName)" data-exercise-name="${encodeURIComponent(e.name || '')}" class="px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex w-full text-left justify-between items-center border-b border-slate-800/40 last:border-0">
                         <span class="font-bold text-slate-200">${safeName}</span>
                         <span class="text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">${safeCat}</span>
-                    </div>
+                    </button>
                 `;
             });
 
@@ -3425,9 +3484,10 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             let exName = encodedName;
             try { exName = decodeURIComponent(encodedName); } catch (e) {}
             const dropdown = document.getElementById(`pred_dropdown_${exIndex}`);
-            if (dropdown && dropdown.previousElementSibling) dropdown.previousElementSibling.value = exName;
+            const input = dropdown?.previousElementSibling;
+            if (input) input.value = exName;
             hideAllPredictiveDropdowns();
-            updateExerciseName(memberId, exIndex, exName);
+            updateExerciseName(memberId, exIndex, exName, input);
         }
 
         function hideAllPredictiveDropdowns() {
@@ -3465,8 +3525,18 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     sets: [{ weight: '', reps: '', rir: 0 }]
                 });
                 persistData();
-                refreshMemberExercises(memberId);
-                document.querySelector('[data-exercise-index="'+(member.logs[dateStr].exercises.length-1)+'"] input[type="text"]')?.focus();
+                const container = document.getElementById("memberExercisesContainer");
+                if (!container || window.appData.activeTab !== "track" || activeTrackMemberId !== memberId) return;
+                const log = member.logs[dateStr];
+                const index = log.exercises.length - 1;
+                if (index === 0) container.replaceChildren();
+                container.insertAdjacentHTML("beforeend", renderMemberExerciseList(member, log, index));
+                finishSetEditing(memberId);
+                const card = container.lastElementChild;
+                if (card && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    card.animate([{ opacity: 0, translate: '-100% 0' }, { opacity: 1, translate: '0 0' }],
+                        { duration: 280, easing: 'cubic-bezier(.22,.75,.3,1)' });
+                }
             }
         }
 
@@ -3493,7 +3563,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             updateRoutineExerciseName(routineIndex, index, input.value);
         }
 
-        function updateExerciseName(memberId, exIndex, nameVal) {
+        function updateExerciseName(memberId, exIndex, nameVal, keepInput) {
             const member = window.appData.members.find(m => m.id === memberId);
             if (member) {
                 const dateStr = member.selectedDate || getTodayISODate();
@@ -3511,12 +3581,30 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     }
 
                     persistData();
-                    refreshMemberExercises(memberId);
+                    const card = keepInput?.closest('[data-exercise-index]');
+                    if (card && document.activeElement === keepInput) {
+                        const template = document.createElement('template');
+                        template.innerHTML = renderMemberExerciseList(member, log, exIndex);
+                        const fresh = template.content.firstElementChild;
+                        const header = card.firstElementChild;
+                        const shade = card.querySelector(':scope > .track-card-shade');
+                        const picker = header.querySelector('[data-transfer-picker]');
+                        const freshPicker = fresh.querySelector('[data-transfer-picker]');
+                        if (picker && freshPicker) picker.replaceWith(freshPicker);
+                        // Keep the focused input attached so Safari keeps the keyboard open.
+                        for (const child of Array.from(card.children)) {
+                            if (child !== header && child !== shade) child.remove();
+                        }
+                        for (const child of Array.from(fresh.children).slice(1)) card.insertBefore(child, shade);
+                        finishSetEditing(memberId);
+                    } else {
+                        refreshMemberExercises(memberId);
+                    }
                 }
             }
         }
 
-        function removeExerciseFromMemberLog(memberId, exIndex) {
+        function removeExerciseFromMemberLog(memberId, exIndex, keepEditing = false) {
             const member = window.appData.members.find(m => m.id === memberId);
             const date = member && (member.selectedDate || getTodayISODate());
             const log = member && member.logs[date];
@@ -3525,6 +3613,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             if (container && container._deleteFeedbackCleanup) container._deleteFeedbackCleanup();
             const cards = container ? Array.from(container.querySelectorAll('[data-exercise-index]')) : [];
             const bounds = cards.map(card => card.getBoundingClientRect());
+            const shadeOpacities = cards.map(card => card.querySelector('.track-card-shade')?.style.opacity);
             const card = cards[exIndex], reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             const animated = card && typeof card.animate === 'function';
             const ghost = animated ? card.cloneNode(true) : null;
@@ -3541,26 +3630,68 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 ghost.setAttribute('aria-hidden','true');ghost.inert=true;
                 container.style.minHeight=oldHeight+'px';container.style.position='relative';
             }
-            log.exercises.splice(exIndex,1);
-            persistData();
-            refreshMemberExercises(memberId);
+            const field = document.activeElement;
+            const transferFocus = keepEditing && card?.contains(field) && field.matches('input, textarea') && cards.length > 1;
+            let focusIndex;
+            if (transferFocus) {
+                focusIndex = Math.min(exIndex, log.exercises.length - 2);
+                const template = document.createElement('template');
+                const remaining = log.exercises.filter((_, index) => index !== exIndex);
+                template.innerHTML = renderMemberExerciseList(member, { ...log, exercises: remaining });
+                const next = template.content.querySelector('[data-exercise-index="' + focusIndex + '"]');
+                const column = field.closest('td')?.cellIndex;
+                const target = next.querySelector('tbody')?.rows[0]?.cells[column]?.querySelector('input')
+                    || next.querySelector('[data-weight-input], input');
+                const previous = [...container.childNodes];
+                container.append(template.content);
+                target?.focus({ preventScroll: true });
+                log.exercises.splice(exIndex, 1);
+                persistData();
+                previous.forEach(node => node.remove());
+                finishSetEditing(memberId);
+            } else {
+                log.exercises.splice(exIndex, 1);
+                persistData();
+                refreshMemberExercises(memberId);
+            }
+            container?.dispatchEvent(new CustomEvent('track:after-delete', { detail: { focusIndex } }));
             if (!ghost || !container.isConnected) return;
             if (memberTrendFrame !== null) { cancelAnimationFrame(memberTrendFrame); memberTrendFrame=null; }
-            const rect=bounds[exIndex], parent=container.getBoundingClientRect();
-            Object.assign(ghost.style,{position:'absolute',left:(rect.left-parent.left)+'px',top:(rect.top-parent.top)+'px',width:rect.width+'px',height:rect.height+'px',boxSizing:'border-box',margin:'0',pointerEvents:'none',zIndex:'2',willChange:'transform, opacity',overflow:'hidden'});
+            const rect = bounds[exIndex];
+            Object.assign(ghost.style,{position:'fixed',left:rect.left+'px',top:rect.top+'px',width:rect.width+'px',height:rect.height+'px',boxSizing:'border-box',margin:'0',pointerEvents:'none',zIndex:'45',willChange:'transform, opacity',overflow:'hidden'});
             const survivors=Array.from(container.querySelectorAll('[data-exercise-index]')).map(next=>({next,rect:next.getBoundingClientRect()}));
             const emptyMessage=!log.exercises.length?container.firstElementChild:null;
             if(emptyMessage)emptyMessage.style.visibility='hidden';
-            container.appendChild(ghost);
-            const duration=400, animations=[];
-            animations.push(ghost.animate(reduced?[{opacity:1},{opacity:0}]:[{opacity:1,transform:'translate3d(0,0,0)',clipPath:'inset(0 0 0% 0)',offset:0},{opacity:0.85,transform:'translate3d(14px,0,0)',clipPath:'inset(0 0 0% 0)',offset:0.28},{opacity:0,transform:'translate3d(24px,0,0)',clipPath:'inset(0 0 100% 0)'}],{duration,easing:'ease-in-out',fill:'forwards'}));
-            if(!reduced)for(const {next,rect:after} of survivors){
-                const index=Number(next.dataset.exerciseIndex),before=bounds[index>=exIndex?index+1:index];
-                if(!before)continue;
-                const delta=before.top-after.top;
-                if(Math.abs(delta)<1)continue;
-                next.style.willChange='transform';
-                animations.push(next.animate([{transform:'translate3d(0,'+delta+'px,0)',offset:0},{transform:'translate3d(0,'+delta+'px,0)',offset:0.28},{transform:'translate3d(0,0,0)'}],{duration,easing:'ease-in-out'}));
+            document.body.appendChild(ghost);
+            const duration=350, animations=[];
+            animations.push(ghost.animate(reduced?[{opacity:1},{opacity:0}]:[{opacity:1,transform:'translate3d(0,0,0)',clipPath:'inset(0 0 0% 0)',offset:0},{opacity:0.85,transform:'translate3d(14px,0,0)',clipPath:'inset(0 0 0% 0)',offset:0.28},{opacity:0,transform:'translate3d(100%,0,0)',clipPath:'inset(0 0 100% 0)'}],{duration,easing:'ease-in-out',fill:'forwards'}));
+            if (!reduced) for (const {next, rect: after} of survivors) {
+                const index = Number(next.dataset.exerciseIndex);
+                const oldIndex = index >= exIndex ? index + 1 : index;
+                const before = bounds[oldIndex];
+                if (!before || !after.width || getComputedStyle(next).visibility === 'hidden') continue;
+                const delta = (before.top + before.height / 2) - (after.top + after.height / 2);
+                const scaleRatio = before.width / after.width;
+                const finalTransform = next.style.transform || 'translateZ(0)';
+                const startTransform = 'translateY(' + delta + 'px) scale(' + scaleRatio + ') ' + finalTransform;
+                const timing = { duration, easing: 'ease-in-out' };
+                if (Math.abs(delta) >= 1 || Math.abs(scaleRatio - 1) > 0.001) {
+                    next.style.willChange = 'transform';
+                    animations.push(next.animate([
+                        { transform: startTransform, offset: 0 },
+                        { transform: startTransform, offset: 0.28 },
+                        { transform: finalTransform }
+                    ], timing));
+                }
+                const shade = next.querySelector('.track-card-shade');
+                const oldOpacity = shadeOpacities[oldIndex];
+                if (shade && oldOpacity && oldOpacity !== shade.style.opacity) {
+                    animations.push(shade.animate([
+                        { opacity: oldOpacity, offset: 0 },
+                        { opacity: oldOpacity, offset: 0.28 },
+                        { opacity: shade.style.opacity }
+                    ], timing));
+                }
             }
             let cleaned=false;
             const cleanup=()=>{
@@ -3577,6 +3708,18 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             Promise.allSettled(animations.map(a=>a.finished)).then(()=>{clearTimeout(fallback);cleanup();});
         }
 
+        function animateExerciseSetChange(card, previousHeight, duration = 400) {
+            if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            const height = card?.offsetHeight;
+            if (!height || height === previousHeight) return;
+            card.getAnimations().filter(animation => animation.id === 'set-resize').forEach(animation => animation.cancel());
+            const animation = card.animate(
+                [{ scale: '1 ' + previousHeight / height }, { scale: '1 1' }],
+                { duration, easing: 'cubic-bezier(.25,.65,.35,1)' }
+            );
+            animation.id = 'set-resize';
+        }
+
         function addSetToExercise(memberId, exIndex) {
             const member = window.appData.members.find(m => m.id === memberId);
             if (member) {
@@ -3588,7 +3731,26 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     sets.push({ weight: lastSet.weight, reps: lastSet.reps, rir: 0 });
                     log.exercises[exIndex].sets = sets;
                     persistData();
-                    refreshMemberExercises(memberId);
+                    const card = activeTrackMemberId === memberId && window.appData.activeTab === 'track'
+                        ? document.querySelector('#memberExercisesContainer [data-exercise-index="' + exIndex + '"]')
+                        : null;
+                    const tableBody = card?.querySelector('tbody');
+                    if (!tableBody) {
+                        refreshMemberExercises(memberId);
+                        return;
+                    }
+                    const previousHeight = card.offsetHeight;
+                    const wasEditing = card.contains(document.activeElement) && document.activeElement.matches('input, textarea');
+                    const setIndex = sets.length - 1;
+                    tableBody.insertAdjacentHTML('beforeend', renderExerciseSetRow(member, log.exercises[exIndex], exIndex, sets[setIndex], setIndex, dateStr));
+                    const row = tableBody.lastElementChild;
+                    if (wasEditing) row.querySelector('[data-weight-input]').focus({ preventScroll: true });
+                    finishSetEditing(memberId);
+                    animateExerciseSetChange(card, previousHeight);
+                    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                        row.animate([{ opacity: 0, translate: '0 -8px' }, { opacity: 1, translate: '0 0' }],
+                            { duration: 400, easing: 'cubic-bezier(.25,.65,.35,1)' });
+                    }
                 }
             }
         }
@@ -3616,10 +3778,39 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             if (member) {
                 const dateStr = member.selectedDate || getTodayISODate();
                 const log = member.logs[dateStr];
-                if (log && log.exercises[exIndex] && log.exercises[exIndex].sets) {
-                    log.exercises[exIndex].sets.splice(setIndex, 1);
+                const sets = log?.exercises?.[exIndex]?.sets;
+                if (Number.isInteger(setIndex) && setIndex >= 0 && setIndex < (sets?.length ?? 0)) {
+                    if (sets.length === 1) {
+                        removeExerciseFromMemberLog(memberId, exIndex, true);
+                        return;
+                    }
+                    const card = activeTrackMemberId === memberId && window.appData.activeTab === 'track'
+                        ? document.querySelector('#memberExercisesContainer [data-exercise-index="' + exIndex + '"]')
+                        : null;
+                    const rows = card?.querySelector('tbody')?.rows;
+                    const row = rows?.[setIndex];
+                    if (!row) {
+                        sets.splice(setIndex, 1);
+                        persistData();
+                        refreshMemberExercises(memberId);
+                        return;
+                    }
+                    const previousHeight = card.offsetHeight;
+                    const field = document.activeElement;
+                    if (row.contains(field)) {
+                        const neighbor = rows[setIndex + 1] || rows[setIndex - 1];
+                        const column = field.closest('td')?.cellIndex;
+                        const nextField = neighbor.cells[column]?.querySelector('input') || neighbor.querySelector('[data-weight-input]');
+                        nextField.focus({ preventScroll: true });
+                    }
+                    sets.splice(setIndex, 1);
                     persistData();
-                    refreshMemberExercises(memberId);
+                    row.remove();
+                    for (let index = setIndex; index < rows.length; index++) {
+                        rows[index].cells[0].textContent = index + 1;
+                    }
+                    finishSetEditing(memberId);
+                    animateExerciseSetChange(card, previousHeight, 350);
                 }
             }
         }
@@ -3682,7 +3873,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const items = grouped.get(category);
                 const label = categoryLabels[category] || escapeHtml(category).toUpperCase();
                 html += `
-                    <section data-library-category="${escapeHtml(category)}" class="bg-slate-900/70 border border-slate-800/70 p-3 rounded-xl">
+                    <section data-library-category="${escapeHtml(category)}" class="bg-slate-900/70 border border-slate-500/70 p-3 rounded-xl">
                         <h4 class="text-xs font-extrabold text-amber-400 uppercase tracking-wide mb-2.5 flex items-center gap-2">
                             <i class="fa-solid fa-dumbbell"></i> NHÓM: ${label} (${items.length})
                         </h4>
