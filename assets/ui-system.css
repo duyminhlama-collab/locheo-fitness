@@ -75,6 +75,10 @@ body:not(.track-layout) #appContent h3 i { margin-right:4px; }
 }
 
 /* Compact library chips and clearer boundaries between workout templates. */
+#libraryPage > .library-page-content { padding:24px; }
+@media (max-width:767px) {
+  #libraryPage > .library-page-content { padding:16px; }
+}
 #libraryPage .library-exercise-chip { padding-block:2px; }
 #libraryPage .library-exercise-chip button { min-height:28px; min-width:28px; }
 #routinesListContainer > .routine-card {

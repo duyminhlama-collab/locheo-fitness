@@ -11,7 +11,9 @@
         let wheelLast = 0, wheelSum = 0, wheelUsed = false, movingUntil = 0;
         let suppressClickUntil = 0;
         let editingScroll = null, restingScroll = null;
-        const topInset = card => Math.max(16, (root.clientHeight - card.offsetHeight) / 2);
+        let centerShift = 0;
+        const centeredInset = card => (root.clientHeight - card.offsetHeight) / 2;
+        const topInset = card => Math.max(16, centeredInset(card) + centerShift);
         const bounds = index => {
             const card = cards[index];
             if (!card) return {start: 0, end: 0};
@@ -171,7 +173,7 @@
         on('touchstart', event => {
             touch = null;
             if (keyboardOpen || event.touches.length !== 1 ||
-                event.target.closest('[data-track-drag-handle]') || nestedScroll(event.target, 0) || !cards.length) return;
+                event.target.closest('[data-track-drag-handle], [id^="pred_dropdown_"], [data-transfer-options]') || nestedScroll(event.target, 0) || !cards.length) return;
             const p = event.touches[0];
             touch = {
                 x: p.clientX, y: p.clientY, top: root.scrollTop,
@@ -240,11 +242,17 @@
         on('touchend', event => endTouch(event, false), {passive: false});
         on('touchcancel', event => endTouch(event, true));
         on('click', event => {
+            if (event.target.closest('[id^="pred_dropdown_"], [data-transfer-options]')) return;
             if (glideFrame || performance.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); return; }
             const card = event.target.closest('[data-exercise-index]');
             if (!card || event.target.closest('input, button, summary, a')) return;
             const index = cards.indexOf(card);
-            if (index >= 0 && index !== active) choose(index);
+            if (index >= 0 && index !== active) {
+                choose(index);
+            } else if (index >= 0) {
+                const cell = event.target.closest('[data-set-input-hit-area]');
+                cell?.querySelector('input')?.focus({preventScroll: true});
+            }
         }, {capture: true});
         let noteTap = null;
         on('pointerdown', event => {
@@ -281,6 +289,30 @@
             noteTap = null;
             if (isTap && cards[active]?.contains(input)) input.focus({preventScroll: true});
         });
+        on('track:after-delete', event => {
+            update();
+            if (Number.isInteger(event.detail?.focusIndex)) {
+                active = layerAnchor = event.detail.focusIndex;
+            }
+            layout();
+            if (!keyboardOpen && cards.length) {
+                const range = bounds(active);
+                layerAnchor = active;
+                scroll(Math.max(range.start, Math.min(range.end, root.scrollTop)), false);
+            }
+            // Apply the dimming before the delete animation measures the new cards.
+            cancelAnimationFrame(frame);
+            paint();
+        });
+        on('pointerdown', event => {
+            if (keyboardOpen) return;
+            openingOrigin = null;
+            const field = event.target.closest('input, textarea, [data-set-input-hit-area]');
+            const card = field?.closest('[data-exercise-index]');
+            if (card && cards[active] === card) {
+                openingOrigin = { card, top: card.getBoundingClientRect().top - (viewport?.offsetTop || 0) };
+            }
+        }, {capture: true});
         on('focusin', event => {
             const index = cards.indexOf(event.target.closest('[data-exercise-index]'));
             if (index >= 0) active = index;
@@ -297,12 +329,30 @@
             paintedPosition = undefined;
             if (!root.isConnected || !cards.length) return;
             if (keyboardOpen) {
-                // One scroll position for the entire editing session.
-                if (editingScroll === null) editingScroll = Math.max(0, cards[active].offsetTop - 12);
-                root.scrollTop = editingScroll;
+                const card = cards[active];
+                const available = root.clientHeight;
+                const margin = 8;
+                // Give the first and last card room to center even at the scroll limits.
+                const padding = Math.ceil(available / 2);
+                root.style.paddingTop = padding + 'px';
+                root.style.paddingBottom = padding + 'px';
+                let target = card.offsetTop - Math.max(margin, (available - card.offsetHeight) / 2);
+                const field = document.activeElement;
+                if (card.offsetHeight > available - 2 * margin && card.contains(field)) {
+                    const fieldRect = field.getBoundingClientRect();
+                    const fieldTop = card.offsetTop + fieldRect.top - card.getBoundingClientRect().top;
+                    target = Math.min(target, fieldTop - margin);
+                    target = Math.max(target, fieldTop + fieldRect.height + margin - available);
+                }
+                root.scrollTop = Math.max(0, target);
+                editingScroll = root.scrollTop;
             } else {
+                const rect = root.getBoundingClientRect();
+                const screenCenter = (viewport?.offsetTop ?? 0) + (viewport?.height ?? innerHeight) / 2;
+                const deckCenter = rect.top + rect.height / 2;
+                centerShift = Math.max(-12, Math.min(12, screenCenter - deckCenter));
                 root.style.paddingTop = topInset(cards[0]) + 'px';
-                root.style.paddingBottom = topInset(cards[cards.length - 1]) + 'px';
+                root.style.paddingBottom = Math.max(16, centeredInset(cards[cards.length - 1]) - centerShift) + 'px';
                 if (restingScroll !== null) {
                     root.scrollTop = restingScroll;
                     restingScroll = null;
@@ -338,6 +388,7 @@
         let viewportWidth = innerWidth;
         let keyboardOpen = false;
         let keyboardSlide;
+        let openingOrigin;
         let layoutFrame = 0;
         function scheduleLayout() {
             if (!layoutFrame) layoutFrame = requestAnimationFrame(() => {
@@ -356,8 +407,12 @@
                 // A keyboard type change can briefly grow the viewport.
                 // Keep the editing session until it is almost fully restored.
                 const nextOpen = mobile.matches && editing && lostHeight > (keyboardOpen ? 24 : 55);
-                const openingCard = nextOpen && !keyboardOpen && !reduced() ? cards[active] : null;
-                const previousTop = openingCard?.getBoundingClientRect().top;
+                const slidingCard = nextOpen !== keyboardOpen && !reduced() ? cards[active] : null;
+                const viewportTop = viewport?.offsetTop || 0;
+                const previousTop = nextOpen && openingOrigin && openingOrigin.card === slidingCard
+                    ? openingOrigin.top
+                    : slidingCard?.getBoundingClientRect().top - viewportTop;
+                if (nextOpen || !editing) openingOrigin = null;
                 if (nextOpen !== keyboardOpen) {
                     keyboardSlide?.cancel();
                     keyboardSlide = null;
@@ -379,13 +434,13 @@
                     document.body.style.removeProperty('--keyboard-top');
                 }
                 layout();
-                if (openingCard) {
-                    // Lock the editing layout immediately and animate only its visual offset.
-                    const offset = previousTop - openingCard.getBoundingClientRect().top;
+                if (slidingCard) {
+                    // Apply the new layout immediately and animate the selected card from its previous position.
+                    const offset = previousTop - (slidingCard.getBoundingClientRect().top - viewportTop);
                     if (Math.abs(offset) > 1) {
-                        keyboardSlide = openingCard.animate(
+                        keyboardSlide = slidingCard.animate(
                             [{translate: '0 ' + offset + 'px'}, {translate: '0 0px'}],
-                            {duration: 260, easing: 'cubic-bezier(0.25, 0.65, 0.35, 1)'}
+                            {duration: nextOpen ? 260 : 200, easing: 'cubic-bezier(0.25, 0.65, 0.35, 1)'}
                         );
                     }
                 }
@@ -404,6 +459,9 @@
         root.tabIndex = 0;
         root.setAttribute('aria-label', 'Bài tập: vuốt đủ xa hoặc cuộn để chuyển từng bài');
         update();
+        layout();
+        cancelAnimationFrame(frame);
+        paint();
         return {update, destroy() { controller.abort(); observer.disconnect(); keyboardSlide?.cancel(); setEdgeOffset(0); cancelAnimationFrame(frame); cancelAnimationFrame(layoutFrame); cancelAnimationFrame(glideFrame); document.body.classList.remove('track-layout', 'track-keyboard'); document.body.style.removeProperty('--keyboard-top'); document.body.style.removeProperty('--track-height'); }};
     }
     function init() {
