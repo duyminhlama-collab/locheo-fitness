@@ -329,7 +329,10 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 <div class="flex gap-2">
                     <button onclick="closeSyncModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium">Đóng</button>
                     <button onclick="connectCloudSync()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-900/30">
-                        Kết Nối Sync
+                        Vào nhóm
+                    </button>
+                    <button onclick="connectCloudSync(true)" class="px-3 py-2 bg-slate-800 text-emerald-300 rounded-xl text-xs font-semibold">
+                        Tạo nhóm
                     </button>
                 </div>
             </div>
@@ -771,26 +774,15 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 updateSyncBadge(connected, syncCode);
             }
 
-            window.setupCloudSync = async function(groupCode, carryIds) {
+            window.setupCloudSync = async function(groupCode, carryIds, create = false) {
                 const code = sanitizeCode(groupCode);
                 if (code.length < 3) {
                     showToast('Mã nhóm cần ít nhất 3 ký tự (chữ, số, - hoặc _).', 'error');
                     return false;
                 }
-                clearTimeout(pollTimer);
-                clearTimeout(pushTimer);
-                pushTimer = null;
-
                 let saved = null;
                 try { saved = JSON.parse(appStorage.getItem(SYNC_STATE_KEY) || 'null'); } catch (e) {}
                 const resumed = saved && saved.code === code;
-                const epoch = ++syncEpoch;
-                syncReady = false;
-                syncCode = code;
-                syncVersion = resumed ? saved.version : 0;
-                syncBase = resumed && saved.base ? toShared(saved.base) : null;
-                if (resumed) saveSyncState();
-
                 // Chuyển sang nhóm khác: carryIds là danh sách id thành viên được đem sang (có thể rỗng).
                 // Hai người demo không bao giờ được đem sang.
                 const switching = Array.isArray(carryIds) && !resumed;
@@ -813,6 +805,64 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         carriedLibrary = mergeExerciseLibraries(window.appData.exerciseLibrary, routineExercises, loggedExercises);
                     }
                 }
+                let body;
+                const previousEpoch = syncEpoch;
+                try {
+                    const response = await syncFetch(`/api/sync?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    body = await response.json();
+                    if (previousEpoch !== syncEpoch) return false;
+                    if (!Number.isInteger(body.version) || body.version < 0 ||
+                        (body.version > 0 && !body.data)) throw new Error('Invalid group response');
+                    if (create) {
+                        if (body.version > 0 || resumed || code === window.currentGroupCode) {
+                            showToast('Mã nhóm đã tồn tại. Hãy chọn mã khác hoặc vào nhóm có sẵn.', 'error');
+                            return false;
+                        }
+                        const data = toShared({ ...window.appData, members: carried, exerciseLibrary: carriedLibrary });
+                        const created = await syncFetch('/api/sync', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ code, data, baseVersion: 0 })
+                        });
+                        if (previousEpoch !== syncEpoch) return false;
+                        if (created.status === 409) {
+                            showToast('Mã nhóm đã tồn tại. Hãy chọn mã khác.', 'error');
+                            return false;
+                        }
+                        if (!created.ok) throw new Error('HTTP ' + created.status);
+                        const result = await created.json();
+                        if (previousEpoch !== syncEpoch) return false;
+                        if (!Number.isInteger(result.version) || result.version <= 0) throw new Error('Invalid group version');
+                        body = { version: result.version, data };
+                    } else if (body.version === 0) {
+                        if (resumed) backupBeforeRollback();
+                        showToast('Không tìm thấy nhóm. Kiểm tra mã hoặc chọn Tạo nhóm.', 'error');
+                        return false;
+                    }
+                } catch (error) {
+                    if (previousEpoch !== syncEpoch) return false;
+                    if (resumed && !syncReady) {
+                        clearTimeout(pollTimer);
+                        pollTimer = setTimeout(() => {
+                            if (previousEpoch === syncEpoch) window.setupCloudSync(code);
+                        }, POLL_STEPS_MS[0]);
+                    }
+                    if (!resumed && navigator.onLine !== false) showToast('Không kết nối được máy chủ đồng bộ. Hãy thử lại.', 'error');
+                    return false;
+                }
+
+                clearTimeout(pollTimer);
+                clearTimeout(pushTimer);
+                pushTimer = null;
+
+                const epoch = ++syncEpoch;
+                syncReady = false;
+                syncCode = code;
+                syncVersion = resumed ? saved.version : 0;
+                syncBase = resumed && saved.base ? toShared(saved.base) : null;
+                if (resumed) saveSyncState();
+
                 const resetViewAfterSwap = () => {
                     const ids = (window.appData.members || []).map(m => m.id);
                     if (!ids.includes(activeTrackMemberId)) activeTrackMemberId = ids[0] || null;
@@ -823,18 +873,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 };
 
                 try {
-                    const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
-                    if (!res.ok) throw new Error('HTTP ' + res.status);
-                    const body = await res.json();
-                    if (epoch !== syncEpoch) return false;
-                    if (body.data) body.data = toShared(body.data);
-                    if (body.version > 0 && !body.data) throw new Error('Missing group data');
-                    if (resumed && syncVersion > 0 && body.version === 0) {
-                        backupBeforeRollback();
-                        setConnected(false);
-                        showToast('Không thấy nhóm đã đồng bộ. Dữ liệu trên máy vẫn được giữ.', 'error');
-                        return false;
-                    }
+                    body.data = toShared(body.data);
                     syncReady = true;
                     if (body.version > 0) {
                         const restored = resumed && (body.version < syncVersion ||
@@ -868,17 +907,6 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         syncVersion = body.version;
                         syncBase = body.data;
                         if (!restored) schedulePush(0);
-                    } else {
-                        syncVersion = 0;
-                        syncBase = null;
-                        if (switching) {
-                            // Nhóm mới: chỉ đẩy lên những người được chọn (không có demo)
-                            window.appData.members = carried;
-                            if (carried.length) window.appData.exerciseLibrary = carriedLibrary;
-                            resetViewAfterSwap();
-                        }
-                        await push();
-                        if (!isCloudConnected) { saveSyncState(); scheduleNextPoll(); return true; }
                     }
                     saveSyncState();
                     isCloudConnected = false;
@@ -4118,7 +4146,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             document.getElementById('syncGroupCodeInput').value = result;
         }
 
-        async function connectCloudSync() {
+        async function connectCloudSync(create = false) {
             const codeInput = document.getElementById('syncGroupCodeInput');
             if (!codeInput || !codeInput.value.trim()) {
                 showToast("Vui lòng nhập Mã Nhóm!", "error");
@@ -4130,14 +4158,14 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
             // Đổi sang nhóm khác: cho chọn người có sẵn dữ liệu để mang sang (không tính 2 người demo)
             const switching = code !== window.currentGroupCode;
-            if (switching) {
+            if (switching && create) {
                 const carryable = (window.appData.members || []).filter(m => !isDemoMember(m));
                 if (carryable.length) {
                     openCarryMembersModal(code, carryable);
                     return;
                 }
             }
-            await joinGroupWithMembers(code, switching ? [] : undefined);
+            await joinGroupWithMembers(code, create ? [] : undefined, create);
         }
 
         const DEMO_MEMBERS = { 'mem_1': 'Đức Hải (Powerlifter)', 'mem_2': 'Minh Tùng (Hypertrophy)' };
@@ -4182,11 +4210,19 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const ids = skipAll ? [] : Array.from(document.querySelectorAll('#carryMembersList input[type="checkbox"]:checked')).map(i => i.value);
             const code = pendingJoinCode;
             closeCarryMembersModal();
-            await joinGroupWithMembers(code, ids);
+            await joinGroupWithMembers(code, ids, true);
         }
 
-        async function joinGroupWithMembers(code, carryIds) {
-            const ok = await window.setupCloudSync(code, carryIds);
+        let groupConnectionPending = false;
+        async function joinGroupWithMembers(code, carryIds, create = false) {
+            if (groupConnectionPending) return;
+            groupConnectionPending = true;
+            let ok;
+            try {
+                ok = await window.setupCloudSync(code, carryIds, create);
+            } finally {
+                groupConnectionPending = false;
+            }
             if (ok) {
                 window.currentGroupCode = code;
                 appStorage.setItem(GROUP_CODE_KEY, code);
