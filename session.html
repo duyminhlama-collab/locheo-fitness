@@ -38,17 +38,17 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
     <meta name="theme-color" content="#0f172a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="LoCheoFitness">
     <link rel="apple-touch-icon" href="./assets/icons/app-icon.png">
 
     <!-- Tailwind CSS CDN -->
-    <link rel="stylesheet" href="./assets/app.css">
-    <link rel="stylesheet" href="./assets/track-wheel.css">
-    <script defer src="./assets/track-wheel.js"></script>
-    <link rel="stylesheet" href="./assets/vendor/fontawesome/css/all.min.css">
-    <script defer src="./assets/offline-storage.js"></script>
-    <script defer src="./assets/vendor/chart-4.4.8.umd.js"></script>
+    <link rel="stylesheet" href="./assets/app.css?v=8e3be40df808">
+    <link rel="stylesheet" href="./assets/track-wheel.css?v=b44d8f5fdc99">
+    <script defer src="./assets/track-wheel.js?v=c2a830826e8d"></script>
+    <link rel="stylesheet" href="./assets/vendor/fontawesome/css/all.min.css?v=58c6906b737c">
+    <script defer src="./assets/offline-storage.js?v=14fdc874c6e6"></script>
+    <script defer src="./assets/vendor/chart-4.4.8.umd.js?v=e4cf4d144b22"></script>
 
     <!-- ========== SECTION 02: CSS GIAO DIỆN ========== -->
     <style>
@@ -57,9 +57,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             padding-bottom: calc(env(safe-area-inset-bottom) + 4rem);
             -webkit-tap-highlight-color: transparent;
             -webkit-touch-callout: none;
+            -webkit-user-select: none;
             user-select: none;
         }
         input, select, textarea {
+            -webkit-user-select: text;
             user-select: text;
         }
         ::-webkit-scrollbar {
@@ -142,7 +144,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             transition: grid-template-rows 220ms ease, opacity 160ms ease, visibility 220ms;
         }
         .entry-suggestions > .entry-suggestions-content { min-height: 0; overflow: hidden; }
-        [data-exercise-index]:has(input[type="number"]:focus, textarea:focus) > .entry-suggestions,
+        [data-exercise-index]:has(input[type="number"]:focus, input[data-reps-input]:focus, textarea:focus) > .entry-suggestions,
         [data-exercise-index].is-editing-set > .entry-suggestions,
         [data-exercise-index] > .entry-suggestions:focus-within {
             grid-template-rows: 1fr; opacity: 1; visibility: visible;
@@ -156,7 +158,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             [data-exercise-index] > .entry-suggestions { transition: none; }
         }
         @media (max-width: 639px) {
-            #memberExercisesContainer input[type="number"] {
+            #memberExercisesContainer input[type="number"],
+            #memberExercisesContainer input[data-reps-input] {
                 font-size: 13px;
                 line-height: 20px;
                 scroll-margin-block: 24px;
@@ -197,7 +200,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             box-shadow: 0 0 8px rgba(129,140,248,0);
         }
     </style>
-    <link rel="stylesheet" href="./assets/ui-system.css">
+    <link rel="stylesheet" href="./assets/ui-system.css?v=441ba3c5784f">
 </head>
 <body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col">
 
@@ -1598,23 +1601,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 if (cap) exerciseMap.set(cap.toLowerCase(), cap);
             });
 
-            (window.appData.members || []).forEach(m => {
-                Object.values(m.logs || {}).forEach(dayLog => {
-                    (dayLog.exercises || []).forEach(ex => {
-                        if (ex.name && ex.name.trim() !== '') {
-                            const cap = capitalizeExerciseName(ex.name);
-                            if (cap) exerciseMap.set(cap.toLowerCase(), cap);
-                        }
-                    });
-                });
-            });
-
             const allExercises = Array.from(exerciseMap.values()).sort();
-            if (allExercises.length === 0) allExercises.push("Bench Press");
             overviewExerciseOptions = allExercises;
 
             if (!allExercises.includes(overviewSelectedExercise)) {
-                overviewSelectedExercise = allExercises[0];
+                overviewSelectedExercise = allExercises[0] || '';
             }
 
             container.innerHTML = `
@@ -1624,7 +1615,6 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                             <h2 class="text-base font-bold text-white flex items-center gap-2">
                                 <i class="fa-solid fa-trophy text-amber-400"></i> Bảng So Sánh Sức Mạnh Nhóm
                             </h2>
-                            <p class="text-xs text-slate-400">So sánh tiến trình 1RM và sức mạnh tương quan cân nặng</p>
                         </div>
                         
                         <div class="w-full sm:w-auto sm:min-w-[270px]">
@@ -1912,7 +1902,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 ? overviewExerciseMatches.map((name, index) => {
                     const exercise = library.get(name.toLowerCase()) || {name};
                     const category = EXERCISE_CATEGORIES[resolvedExerciseCategory(exercise)];
-                    return `<button type="button" onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="pickOverviewExercise(${index})" class="w-full flex items-center justify-between gap-2 text-left px-3 py-2 text-xs border-b border-slate-800/40 last:border-0 hover:bg-slate-800">
+                    return `<button type="button" onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="pickOverviewExercise(${index})" class="exercise-option w-full flex items-center justify-between gap-2 text-left px-3 py-2 text-xs border-b border-slate-800/40 last:border-0 hover:bg-slate-800">
                         <span class="font-bold text-slate-200">${escapeTextValue(name)}</span>
                         <span class="shrink-0 text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">${escapeTextValue(category)}</span>
                     </button>`;
@@ -2129,7 +2119,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     scheduleAdviceHtml = `
                         <div class="bg-indigo-950/40 border border-indigo-500/40 rounded-xl p-3 flex flex-wrap justify-between items-center gap-2">
                             <div class="text-xs text-indigo-200">
-                                <i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i> Gợi ý theo Lịch tuần: <strong>${routine.name}</strong>
+                                <i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i> Theo lịch: <strong>${routine.name}</strong>
                             </div>
                             <button onclick="applyRoutineToMember('${member.id}', '${routine.id}')" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow">
                                 + Nạp Mẫu Buổi Tập Này
@@ -2260,7 +2250,30 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             return arr[arr.length - 1].v;
         }
 
-        // Gom các buổi tập của 1 bài: set tốt nhất theo e1RM (có cộng RIR) + các set làm việc
+        // Compare only matching set positions. Missing/invalid sets are not losses.
+        function suggSessionChange(before, after) {
+            const previous = new Map((before.sets || []).map(set => [set.index, set]));
+            let total = 0, weights = 0, matched = 0;
+            for (const set of after.sets || []) {
+                if (set.index >= 3) continue;
+                const old = previous.get(set.index);
+                if (!old || !(old.eff > 0) || !(set.eff > 0)) continue;
+                const weight = Math.pow(0.5, set.index);
+                total += (set.eff / old.eff - 1) * weight;
+                weights += weight;
+                matched++;
+            }
+            return weights ? {pct: total / weights * 100, matched} : null;
+        }
+
+        // Keep absolute best-set e1RM for load targets; use matched sets for progression.
+        function suggProgressPoints(sessions) {
+            const last = sessions[sessions.length - 1];
+            return sessions.map(s => ({...s, eff: s.progress && last.progress
+                ? last.eff * s.progress / last.progress : s.eff}));
+        }
+
+        // Each session retains original set positions, including gaps in valid input.
         function suggGetSessions(member, name, dateStr) {
             const dates = Object.keys(member.logs || {}).filter(d => d < dateStr).sort();
             // Quy ước: set không ghi RIR = 0 (tập tới giới hạn). Chỉ khi người tập thực sự ghi RIR > 0
@@ -2269,7 +2282,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             dates.forEach(d => {
                 ((member.logs[d] || {}).exercises || []).forEach(ex => {
                     if (capitalizeExerciseName(ex.name) !== name) return;
-                    (ex.sets || []).forEach(st => {
+                    (ex.sets || []).slice(0, 3).forEach(st => {
                         if ((!isBodyweightExercise(name) && !(parseFloat(st.weight) > 0)) || !(parseFloat(st.reps) > 0)) return;
                         if (st.rir === '' || st.rir === undefined || st.rir === null) return;
                         const v = parseFloat(st.rir);
@@ -2284,7 +2297,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const sets = [];
                 ((member.logs[d] || {}).exercises || []).forEach(ex => {
                     if (capitalizeExerciseName(ex.name) !== name) return;
-                    (ex.sets || []).forEach(st => {
+                    (ex.sets || []).forEach((st, setIndex) => {
                         const w = isBodyweightExercise(name) ? (parseFloat(st.weight) || 0) : parseFloat(st.weight);
                         const r = parseFloat(st.reps);
                         if (!(r > 0) || (isBodyweightExercise(name) ? w < 0 : !(w > 0))) return;
@@ -2292,20 +2305,29 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         const rirE = (rir === null || isNaN(rir)) ? defaultRir : rir;
                         const eff = estimate1RM(w, r, rirE);
                         if (!(eff > 0) && !(isBodyweightExercise(name) && w === 0 && get1RMFactor(r, rirE) > 0)) return;
-                        sets.push({ w: w, r: r, rir: isNaN(rir) ? null : rir, rirE: rirE, eff: eff, load: w });
+                        sets.push({ index: setIndex, w: w, r: r, rir: isNaN(rir) ? null : rir, rirE: rirE, eff: eff, load: w });
                     });
                 });
                 if (!sets.length) return;
-                const best = sets.reduce((a, b) => (b.eff > a.eff ? b : a));
-                const top = Math.max.apply(null, sets.map(s => s.load));
+                const progressionSets = sets.filter(set => set.index < 3);
+                if (!progressionSets.length) return;
+                const best = progressionSets.reduce((a, b) => (b.eff > a.eff ? b : a));
+                const top = Math.max.apply(null, progressionSets.map(s => s.load));
                 sessions.push({
                     date: d, t: suggDayNum(d),
                     weight: best.w, reps: best.r, rir: best.rir, rirE: best.rirE, eff: best.eff,
-                    workReps: sets.filter(s => s.load >= top * 0.85).map(s => s.r),
-                    workRirs: sets.filter(s => s.load >= top * 0.85 && s.rir !== null).map(s => s.rir),
+                    workReps: progressionSets.filter(s => s.load >= top * 0.85).map(s => s.r),
+                    workRirs: progressionSets.filter(s => s.load >= top * 0.85 && s.rir !== null).map(s => s.rir),
+                    sets: sets,
                     nSets: sets.length,
-                    weights: sets.map(s => s.w)
+                    weights: progressionSets.map(s => s.w)
                 });
+            });
+            let progress = 1;
+            sessions.forEach((session, i) => {
+                const change = i ? suggSessionChange(sessions[i - 1], session) : null;
+                if (change) progress *= 1 + change.pct / 100;
+                session.progress = progress;
             });
             sessions.hasRir = hasRir;
             sessions.defaultRir = defaultRir;
@@ -2326,6 +2348,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
         // Nhịp tăng 1RM (kg/tháng): trộn xu hướng dài hạn (~3 tháng) và gần đây (~6 tuần)
         function suggProgressRate(sessions) {
+            sessions = suggProgressPoints(sessions);
             const lastT = sessions[sessions.length - 1].t;
             let long = sessions.filter(s => lastT - s.t <= 90).slice(-40);
             if (long.length < 3) long = sessions.slice(-6);
@@ -2338,13 +2361,50 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             return slope === null ? null : slope * 30;
         }
 
+        // Learn from recent recorded sessions only; flat and declining sessions count too.
+        function suggSessionPace(sessions) {
+            sessions = suggProgressPoints(sessions);
+            const last = sessions[sessions.length - 1];
+            const recent = sessions.filter(s => last.t - s.t <= 90).slice(-12);
+            if (recent.length < 4) return { rate: null, low: null, high: null, samples: recent.length };
+            const slopes = [];
+            for (let i = 0; i < recent.length; i++) {
+                for (let j = i + 1; j < recent.length; j++) {
+                    slopes.push({v: (recent[j].eff - recent[i].eff) / (j - i), w: Math.pow(0.8, recent.length - 1 - j)});
+                }
+            }
+            return { rate: suggWPercentile(slopes, 0.5), low: suggWPercentile(slopes, 0.25),
+                high: suggWPercentile(slopes, 0.75), samples: recent.length };
+        }
+
+        // A higher load becomes a habit only after it is sustained in a later session.
+        // Recovering an old load after a deload is not a new personal increment.
+        function suggLearnedJump(sessions, fallback) {
+            const last = sessions[sessions.length - 1];
+            const recent = sessions.filter(s => last.t - s.t <= 180).slice(-24);
+            const jumps = [];
+            let peak = recent[0];
+            for (let i = 1; i < recent.length; i++) {
+                const next = recent[i];
+                if (next.weight <= peak.weight + 1e-6) continue;
+                const confirmed = recent.slice(i + 1, i + 4).some(s =>
+                    s.t - next.t <= 60 && s.weight >= next.weight && s.eff >= peak.eff * 0.98);
+                if (!confirmed || next.eff < peak.eff * 0.98 || next.t - recent[i - 1].t >= 60) continue;
+                jumps.push({v: Math.round((next.weight - peak.weight) * 100) / 100,
+                    w: Math.pow(0.8, recent.length - 1 - i)});
+                peak = next;
+            }
+            return {step: jumps.length >= 2 ? suggWPercentile(jumps, 0.5) : fallback,
+                learned: jumps.length >= 2, samples: jumps.length};
+        }
+
         // Thói quen số rep chung của thành viên (dùng bù khi bài này mới tập ít buổi)
         function suggMemberRepHabit(member, dateStr, repClass) {
             const reps = [];
             Object.keys(member.logs || {}).filter(d => d < dateStr).sort().slice(-60).forEach(d => {
                 ((member.logs[d] || {}).exercises || []).forEach(ex => {
                     if (repClass && suggRepClass(capitalizeExerciseName(ex.name)) !== repClass) return;   // chỉ tính thói quen ở các bài cùng loại
-                    const sets = (ex.sets || []).map(s => ({ w: parseFloat(s.weight), r: parseFloat(s.reps) })).filter(s => s.w > 0 && s.r > 0);
+                    const sets = (ex.sets || []).slice(0, 3).map(s => ({ w: parseFloat(s.weight), r: parseFloat(s.reps) })).filter(s => s.w > 0 && s.r > 0);
                     if (!sets.length) return;
                     const top = Math.max.apply(null, sets.map(s => s.w));
                     sets.filter(s => s.w >= top * 0.85).forEach(s => reps.push(s.r));
@@ -2571,7 +2631,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const dropdown = input.nextElementSibling;
             const query = input.value.trim().toLowerCase();
             const items = (window.appData.exerciseLibrary || []).filter(e => category && transferCategory(e.name) === category && capitalizeExerciseName(e.name) !== capitalizeExerciseName(ex.name) && e.name.toLowerCase().includes(query));
-            dropdown.innerHTML = items.length ? items.map(e => '<button type="button" class="w-full text-left px-3 py-2 hover:bg-slate-800 text-xs text-slate-200 border-b border-slate-800/40" onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="replaceExerciseWithTransfer(\'' + memberId + '\', ' + exIndex + ', decodeURIComponent(\'' + encodeURIComponent(e.name).replace(/'/g, '%27') + '\'))">' + escapeTextValue(e.name) + '<span class="block text-[10px] text-amber-400">' + escapeTextValue(EXERCISE_CATEGORIES[resolvedExerciseCategory(e)]) + '</span></button>').join('') : '<p class="px-3 py-2 text-[11px] text-slate-400">' + (category ? 'Không có bài cùng nhóm cơ phù hợp. Nhập tên rồi nhấn Enter để kiểm tra.' : 'Hãy phân loại bài hiện tại trong kho trước khi transfer.') + '</p>';
+            dropdown.innerHTML = items.length ? items.map(e => '<button type="button" class="exercise-option w-full text-left px-3 py-2 hover:bg-slate-800 text-xs text-slate-200 border-b border-slate-800/40" onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="replaceExerciseWithTransfer(\'' + memberId + '\', ' + exIndex + ', decodeURIComponent(\'' + encodeURIComponent(e.name).replace(/'/g, '%27') + '\'))">' + '<span>' + escapeTextValue(e.name) + '</span><span class="text-[10px] text-amber-400">' + escapeTextValue(EXERCISE_CATEGORIES[resolvedExerciseCategory(e)]) + '</span></button>').join('') : '<p class="px-3 py-2 text-[11px] text-slate-400">' + (category ? 'Không có bài cùng nhóm cơ phù hợp. Nhập tên rồi nhấn Enter để kiểm tra.' : 'Hãy phân loại bài hiện tại trong kho trước khi transfer.') + '</p>';
             dropdown.classList.remove('hidden');
         }
 
@@ -2624,7 +2684,10 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             if (hasData) log.exercises.splice(exIndex + 1, 0, next);
             else log.exercises.splice(exIndex, 1, next);
             persistData();
-            renderContent();
+            // Keep the Track deck mounted and move directly into the new exercise.
+            refreshMemberExercises(memberId);
+            const targetIndex = hasData ? exIndex + 1 : exIndex;
+            document.querySelector('#memberExercisesContainer [data-exercise-index="' + targetIndex + '"] [data-weight-input]')?.focus({preventScroll: true});
         }
 
         function getWeightSuggestion(member, exName, dateStr, noCalib, transfer) {
@@ -2657,7 +2720,17 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const step = bodyweight ? 2.5 : suggInferStep(name, allWeights);
             const roundTo = (x) => Math.max(bodyweight ? 0 : step, parseFloat((Math.round(x / step) * step).toFixed(2)));
             const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+            const cadence = suggSessionPace(sessions);
+            const jumpHabit = suggLearnedJump(sessions, step);
+            const jumpStep = jumpHabit.step;
             const gapDays = Math.max(0, suggDayNum(dateStr) - last.t);
+            const lastTrainingDate = Object.keys(member.logs || {}).filter(d => d < dateStr &&
+                (member.logs[d]?.exercises || []).some(ex => (ex.sets || []).some(set =>
+                    parseFloat(set.reps) > 0 && (isBodyweightExercise(ex.name) || parseFloat(set.weight) > 0)))).sort().pop();
+            const trainingGapDays = lastTrainingDate ? Math.max(0, suggDayNum(dateStr) - suggDayNum(lastTrainingDate)) : gapDays;
+            const returning = gapDays >= 60 || trainingGapDays >= 30;
+            const returnGapDays = trainingGapDays >= 30 ? trainingGapDays : gapDays;
+            const returnContext = trainingGapDays >= 30 ? 'không tập' : 'không tập bài này';
 
             // --- Khung rep riêng của TỪNG BÀI ---
             // Đọc các set của chính bài này (buổi gần đây nặng ký hơn nên khung tự dịch theo cách tập hiện tại).
@@ -2718,18 +2791,10 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             else if (phase === 'cut' && (speed === 'fast' || speed === 'mid' || speed === 'unknown')) speed = 'slow';   // cutting: nhảy tạ nhỏ
             const rateTxt = rate === null ? 'chưa rõ' : `${rate >= 0 ? '+' : ''}${rate.toFixed(1)}kg 1RM/tháng`;
 
-            // 1RM kỳ vọng tăng thêm ở buổi này (kg), co về mức mặc định 1% khi còn ít dữ liệu
-            const gapEff = clamp(gapDays || 7, 3, 14);
-            const defaultG = eLast * 0.01;
-            let gKg = defaultG;
-            if (rate !== null) {
-                const conf = Math.min(1, (n - 1) / 5);
-                gKg = conf * (Math.max(0, rate) * gapEff / 30) + (1 - conf) * defaultG;
-            }
-            gKg = clamp(gKg, eLast * 0.003, eLast * 0.04);
-            if (bulkStall) gKg = Math.max(eLast * 0.003, gKg * 0.5);
-            else if (phase === 'bulk') gKg = Math.min(gKg * 1.1, eLast * 0.04);          // bulking: dư calo hỗ trợ tăng tiến
-            if (phase === 'cut') gKg = Math.max(eLast * 0.003, gKg * 0.5);                // cutting: mục tiêu là giữ sức mạnh
+            // One recorded exposure, not elapsed days, is the unit of progression.
+            // Never accumulate unachieved predictions or force positive growth on a flat history.
+            let gKg = cadence.rate === null ? 0 : clamp(cadence.rate, 0, eLast * 0.04);
+            if (bulkStall || phase === 'cut') gKg *= 0.5;
             // --- Tự hiệu chỉnh: chạy lại gợi ý cho các buổi trước (chỉ dùng dữ liệu trước ngày đó),
             //     so với kết quả thực tế. Nếu bạn thường vượt/thấp hơn gợi ý -> buổi sau chỉnh theo (nhẹ tay, 60%).
             let calib = 1, calibN = 0;
@@ -2752,10 +2817,10 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             // --- Trạng thái: đỉnh, đi ngang, tụt ---
             const recent = sessions.slice(-8);
             let peakIdx = 0;
-            recent.forEach((s, i) => { if (s.eff >= recent[peakIdx].eff) peakIdx = i; });
-            const peakE = recent[peakIdx].eff;
+            recent.forEach((s, i) => { if (s.progress > recent[peakIdx].progress * 1.01) peakIdx = i; });
+            const peakE = last.eff * recent[peakIdx].progress / last.progress;
             const sinceBest = recent.length - 1 - peakIdx;
-            const declining = sinceBest >= 3 && last.eff < peakE * (cutting ? 0.92 : 0.95);
+            const declining = sinceBest >= 3 && last.progress < recent[peakIdx].progress * (cutting ? 0.92 : 0.95);
             const plateau = !declining && !cutting && sinceBest >= 3 && (last.t - recent[peakIdx].t) >= 21;
             const justJumped = !!prev && last.weight >= prev.weight + step * 0.99;
             // RIR mục tiêu của buổi này: lấy trung vị RIR các set làm việc ở ~4 buổi gần nhất (tối thiểu 1 nếu có ghi RIR);
@@ -2764,7 +2829,15 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             sessions.slice(-4).forEach(s => (s.workRirs || []).forEach(v => rirPool.push(v)));
             let tRIR = sessions.hasRir ? Math.max(1, clamp(Math.round(suggMedian(rirPool) || 0), 0, 4)) : 0;
             const capReps = last.reps + last.rirE;
-            const repsAt = (W, E) => repsFor1RM(W, E, tRIR);
+            const repsAt = (W, E) => {
+                let reps = repsFor1RM(W, E, tRIR);
+                while (reps > 0 && estimate1RM(W, reps, tRIR) > E + 1e-8) reps -= 0.5;
+                return Math.max(0, reps);
+            };
+            const nextWeight = Math.round((last.weight + jumpStep) * 100) / 100;
+            const nextReps = Math.min(hi, repsAt(nextWeight, eT));
+            const readyToJump = capReps >= hi && nextReps >= lo &&
+                (gKg > 0 || last.rirE > tRIR) && estimate1RM(nextWeight, nextReps, tRIR) <= eT + 1e-8;
 
             let mode, W, R, reason, alt = null;
 
@@ -2774,46 +2847,41 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 R = clamp(P, lo, hi);
                 const dropPct = ((1 - last.eff / peakE) * 100).toFixed(0);
                 reason = `Sức mạnh ước tính tụt ${dropPct}% so với đỉnh suốt ${sinceBest} buổi → giảm tải ~10% một buổi rồi tăng lại từ từ.`;
-            } else if (gapDays > 14) {
+            } else if (returning) {
                 mode = 'return';
-                const cut = Math.min(0.10, (gapDays - 10) * 0.005);
+                const cut = Math.min(0.10, (returnGapDays - 10) * 0.005);
                 W = roundTo(weightFor1RM(eLast * (1 - cut), P, tRIR));
                 R = clamp(P, lo, hi);
-                reason = `Nghỉ ${gapDays} ngày → vào lại nhẹ hơn ~${(cut * 100).toFixed(0)}%, làm quen lại rồi mới tăng tiếp.`;
-            } else if (capReps >= hi) {
-                // CHẠM ĐỈNH KHUNG REP -> NHẢY TẠ, rep tụt về đáy khung
+                reason = `${returnGapDays} ngày ${returnContext} → vào lại nhẹ hơn ~${(cut * 100).toFixed(0)}%, làm quen lại rồi mới tăng tiếp.`;
+            } else if (readyToJump) {
                 mode = 'jump';
-                // Người tăng càng nhanh -> rep hạ càng sâu (bước nhảy càng lớn); tăng chậm -> nhảy nhỏ, rep chỉ hạ nhẹ
-                const frac = (speed === 'fast') ? 0 : ((speed === 'mid' || speed === 'unknown') ? 0.33 : 0.6);
-                const t = clamp(Math.round(lo + (hi - lo) * frac), lo, Math.max(lo, hi - 1));
-                const maxW = bodyweight ? last.weight + 5 : Math.max(last.weight + step, last.weight * 1.15);   // không nhảy quá ~15% một lần
-                W = roundTo(weightFor1RM(eT, t, tRIR));
-                if (W < last.weight + step - 1e-9) W = roundTo(last.weight + step);
-                if (W > maxW) W = roundTo(Math.max(last.weight + step, Math.floor(maxW / step) * step));
-                R = repsAt(W, eT);
-                let guard = 0;
-                while (R > hi - 1 && W + step <= maxW + 1e-9 && guard++ < 10) { W = roundTo(W + step); R = repsAt(W, eT); }
-                guard = 0;
-                while (R < lo && W - step >= last.weight + step - 1e-9 && guard++ < 10) { W = roundTo(W - step); R = repsAt(W, eT); }
-                R = clamp(R, lo, hi);
-                const size = (speed === 'fast') ? 'lớn' : ((speed === 'mid' || speed === 'unknown') ? 'vừa' : 'nhỏ');
-                reason = `Đã chạm đỉnh khung ${lo}–${hi} rep → nhảy tạ +${parseFloat((W - last.weight).toFixed(2))}kg, rep hạ về ~${R}. Nhịp ${rateTxt} (${speedTxt}) nên bước nhảy ${size}.`;
-                if (plateau) reason += ' Đang đi ngang ≥3 tuần: nếu vẫn kẹt, giảm tải 5–10% một buổi.';
-                const altR = last.reps + 1;
-                alt = { weight: last.weight, reps: altR, label: 'Giữ tạ, thêm rep (an toàn)' };
+                W = nextWeight;
+                R = nextReps;
+                reason = `Đủ sức cho ${W}kg × ${R} rep trong khung ${lo}–${hi}. ` +
+                    (jumpHabit.learned ? `Bước tăng thường hoàn thành của bạn: ${jumpStep}kg.` : `Chưa đủ lần tăng để học bước riêng; thử bước ${jumpStep}kg.`);
+                alt = {weight:last.weight, reps:Math.max(last.reps, Math.min(hi, repsAt(last.weight, eT))), label:'Giữ mức tạ hiện tại'};
             } else {
-                // CHƯA CHẠM ĐỈNH -> GIỮ TẠ, THÊM REP
                 mode = 'build';
                 W = last.weight;
-                R = repsAt(W, eT);
-                const minUp = (calib < 0.99 || phase === 'cut') ? 0 : 1;   // cutting: không ép thêm rep mỗi buổi
-                R = clamp(Math.max(R, last.reps + minUp), last.reps + minUp, Math.min(hi, last.reps + 3));
-                if (justJumped) reason = `Mới tăng tạ lên ${last.weight}kg → rep còn thấp là bình thường. Giữ tạ, thêm rep dần tới ${hi} rồi mới nhảy tiếp.`;
-                else reason = `Khung rep của bạn ${lo}–${hi}. Giữ ${W}kg, thêm rep tới ${hi} rồi mới nhảy tạ. Nhịp ${rateTxt}.`;
-                if (plateau) reason += ' Đang đi ngang ≥3 tuần: ưu tiên tăng rep sạch, đừng vội nhảy tạ.';
-                const W2 = roundTo(W + step);
-                const R2 = clamp(repsAt(W2, eT), 1, hi);
-                if (R2 >= Math.max(1, lo - 1)) alt = { weight: W2, reps: R2, label: 'Thấy nhẹ? thử nặng hơn một bậc' };
+                R = Math.max(last.reps, Math.min(hi, last.reps + 3, repsAt(W, eT)));
+                reason = R > last.reps
+                    ? `Giữ ${W}kg, hướng tới ${R} rep theo kết quả gần đây.`
+                    : `Giữ ${W}kg × ${R} rep; chưa đủ tín hiệu để tăng mục tiêu.`;
+                if (justJumped) reason += ' Vừa tăng tạ: củng cố kết quả ở mức mới.';
+                if (plateau) reason += ' Kết quả đang đi ngang; không ép tăng theo số buổi.';
+            }
+            let nextTarget = null;
+            if (mode === 'build' || mode === 'jump') {
+                const targetWeight = mode === 'jump' ? Math.round((W + jumpStep) * 100) / 100 : nextWeight;
+                const targetE = Math.max(estimate1RM(targetWeight, lo, tRIR), eLast * 1.003);
+                const remaining = Math.max(0, targetE - eLast);
+                const pace = cadence.rate === null ? 0 : cadence.rate;
+                nextTarget = {weight:targetWeight, reps:lo,
+                    sessions:pace > 0 ? Math.max(1, Math.ceil(remaining / pace)) : null,
+                    earliest:cadence.high > 0 ? Math.max(1, Math.ceil(remaining / cadence.high)) : null,
+                    latest:cadence.low > 0 ? Math.max(1, Math.ceil(remaining / cadence.low)) : null};
+                if (cadence.rate !== null) reason += ` Nhịp gần đây: ${cadence.rate.toFixed(1)}kg e1RM/buổi.`;
+                if (nextTarget.sessions !== null) reason += ` Mốc ${targetWeight}kg × ${lo}: ước tính khoảng ${nextTarget.sessions} buổi, cập nhật theo kết quả thực tế.`;
             }
 
             const bwKg = bw ? `${bw.kg >= 0 ? '+' : ''}${bw.kg.toFixed(1)}kg/tháng` : null;
@@ -2832,20 +2900,20 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             // Mô tả ngắn hiển thị trên dòng gợi ý; bản đầy đủ (reason) nằm trong tooltip
             let shortReason;
             if (mode === 'reduce') shortReason = `Tụt ${((1 - last.eff / peakE) * 100).toFixed(0)}% so với đỉnh.`;
-            else if (mode === 'return') shortReason = `Nghỉ ${gapDays} ngày → vào lại nhẹ ~${(Math.min(0.10, (gapDays - 10) * 0.005) * 100).toFixed(0)}%.`;
+            else if (mode === 'return') shortReason = `${returnGapDays} ngày ${returnContext} → vào lại nhẹ ~${(Math.min(0.10, (returnGapDays - 10) * 0.005) * 100).toFixed(0)}%.`;
             else if (mode === 'jump') shortReason = `Chạm đỉnh ${lo}–${hi} rep → nhảy +${parseFloat((W - last.weight).toFixed(2))}kg, rep về ~${R}.`;
-            else shortReason = justJumped ? `Mới tăng tạ → giữ ${W}kg, thêm rep tới ${hi}.` : `Giữ ${W}kg, thêm rep tới ${hi} rồi nhảy tạ.`;
+            else shortReason = R > last.reps ? `Giữ ${W}kg, hướng tới ${R} rep.` : `Giữ ${W}kg × ${R} rep, củng cố mức hiện tại.`;
             if (plateau && (mode === 'jump' || mode === 'build')) shortReason += ' Đang đi ngang.';
 
             const tags = {
                 jump: { text: 'Tăng tiến', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700/60' },
-                build: { text: 'Tăng tiến', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700/60' },
+                build: { text: R > last.reps ? 'Tăng tiến' : 'Giữ mức', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700/60' },
                 reduce: { text: 'Giảm tải', cls: 'bg-rose-950 text-rose-300 border-rose-700/60' },
                 return: { text: 'Vào lại', cls: 'bg-emerald-950 text-emerald-300 border-emerald-700/60' }
             };
             return {
                 weight: W, reps: R, rir: tRIR, mode: mode, shortReason: shortReason, declining: declining, tag: tags[mode], reason: reason, alt: alt,
-                last: last, sessions: n, lo: lo, hi: hi, P: P, repSrc: repSrc, step: step,
+                last: last, sessions: n, lo: lo, hi: hi, P: P, repSrc: repSrc, step: step, jumpStep, jumpHabit, cadence, nextTarget,
                 rateTxt: rateTxt, speedTxt: speedTxt, bwKg: bwKg, phase: phase, calib: calib, calibN: calibN, predE: estimate1RM(W, R, tRIR), span: n >= 2 ? (last.t - sessions[0].t) : 0
             };
         }
@@ -2853,14 +2921,14 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         // =====================================================================
         // ========== SECTION 13: PHÂN TÍCH XU HƯỚNG SỨC MẠNH ========== 
         // XU HƯỚNG TẠ (những buổi tập gần đây)
-        // Với mỗi buổi tập, so sức mạnh ước tính (e1RM) của từng bài với buổi gần nhất trước đó của chính bài đó,
-        // lấy trung bình có trọng số theo thứ tự bài (1, 1/2, 1/3...) -> % thay đổi của buổi. Tính trung bình cộng các buổi với trọng số giảm dần theo độ cũ.
-        // Chỉ xét TREND_RECENT_DAYS buổi gần nhất trong ~8 tuần; tăng/giảm từ 2% trở lên mới tính, còn lại là "Đi ngang".
+        // Mỗi bài: chỉ so 3 set đầu, trọng số 1, 1/2, 1/4; bỏ set không có ở cả hai buổi.
+        // lấy trung bình có trọng số theo thứ tự bài (1, 2/3, 4/9, 8/27...) -> % thay đổi của buổi. Tính trung bình cộng các buổi với trọng số giảm dần theo độ cũ.
+        // Chỉ xét TREND_RECENT_DAYS buổi gần nhất trong ~8 tuần; trong ±1% là "Đi ngang", vượt ngưỡng mới tính tăng/giảm.
         // =====================================================================
         const TREND_WINDOW_DAYS = 56;
         const TREND_RECENT_DAYS = 8;
         const TREND_HALF_LIFE_SESSIONS = 4;
-        const TREND_MIN_PCT = 2;
+        const TREND_MIN_PCT = 1;
         const TREND_LEVELS = {
             up:   { label: 'Tăng',     icon: 'fa-arrow-trend-up',   text: 'text-emerald-300', stroke: '#34d399' },
             flat: { label: 'Đi ngang', icon: 'fa-minus',            text: 'text-amber-300',   stroke: '#fcd34d' },
@@ -2871,7 +2939,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         function loadAddDays(dateStr, n) { return loadIsoOf(suggDayNum(dateStr) + n); }
         function loadFmtDate(dateStr) { const p = String(dateStr).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : dateStr; }
 
-        function trendLevelOf(pct) { return pct >= TREND_MIN_PCT ? 'up' : (pct <= -TREND_MIN_PCT ? 'down' : 'flat'); }
+        function trendLevelOf(pct) { return pct > TREND_MIN_PCT ? 'up' : (pct < -TREND_MIN_PCT ? 'down' : 'flat'); }
         function trendPctTxt(pct) { const r = Math.round(pct * 10) / 10; return (r > 0 ? '+' : '') + r.toFixed(1).replace('.', ',') + '%'; }
 
         // Xu hướng theo các buổi tập gần đây của 1 thành viên (null nếu chưa đủ dữ liệu)
@@ -2896,11 +2964,13 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 }
                 for (let i = 1; i < ss.length; i++) {
                     if (ss[i].t < dn - TREND_WINDOW_DAYS || !(ss[i - 1].eff > 0)) continue;
+                    const change = suggSessionChange(ss[i - 1], ss[i]);
+                    if (!change) continue;
                     const exercises = member.logs[ss[i].date].exercises || [];
                     const position = exercises.findIndex(ex => capitalizeExerciseName(ex.name) === name);
-                    const weight = 1 / (Math.max(0, position) + 1);
+                    const weight = Math.pow(2 / 3, Math.max(0, position));
                     (byDate[ss[i].date] = byDate[ss[i].date] || []).push({
-                        pct: (ss[i].eff / ss[i - 1].eff - 1) * 100, weight: weight
+                        pct: change.pct, weight: weight
                     });
                 }
             });
@@ -2985,17 +3055,19 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const [exercise] = exercises.splice(from, 1);
             exercises.splice(to, 0, exercise);
             persistData();
-            renderContent();
+            refreshMemberExercises(memberId);
+            document.getElementById('memberExercisesContainer')?.dispatchEvent(
+                new CustomEvent('track-select-index', {detail:to}));
             return true;
         }
 
-        // Giữ khung bài 120ms để nhấc lên; chỉ lưu thứ tự khi thả tay.
+        // Giữ phần trống của thẻ 350ms để nhấc lên; chỉ lưu thứ tự khi thả tay.
         function startExerciseReorder(event, memberId, index) {
             if (!event.isPrimary || event.button !== 0) return;
             const fromHandle = !!event.target.closest('[data-track-drag-handle]');
-            if (!fromHandle) return;
-            event.preventDefault();
-            document.activeElement?.blur();
+            if (!fromHandle && event.target.closest('input, textarea, select, button, a, summary, [role="button"], [data-set-input-hit-area]')) return;
+            if (document.body.classList.contains('track-layout') && !event.currentTarget.classList.contains('track-active')) return;
+            if (fromHandle) event.preventDefault();
             const member = (window.appData.members || []).find(m => m.id === memberId);
             const dateStr = member?.selectedDate || getTodayISODate();
             const exercises = member?.logs?.[dateStr]?.exercises;
@@ -3004,7 +3076,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             if (!exercises || !card) return;
             const expectedOrder = exercises.slice();
             startListReorder(event, container, card,
-                to => moveLogExercise(memberId, dateStr, index, to, expectedOrder), renderContent, fromHandle);
+                to => moveLogExercise(memberId, dateStr, index, to, expectedOrder), renderContent, false);
         }
 
         // Auto-scroll and hit testing share the visible area between fixed controls.
@@ -3046,7 +3118,13 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const schedulePage = container.closest('#schedulePage');
             const mouseDrag = event.pointerType === 'mouse';
             const originalIndex = Array.from(container.children).indexOf(card);
+            const isTrack = container.classList.contains('track-deck');
+            const sourceStyle = card.style.cssText;
+            const animateCards = isTrack && !matchMedia('(prefers-reduced-motion: reduce)').matches;
             let pointerY = event.clientY, ghost = null, marker = null, frame = null;
+            const liftMotions = new Map();
+            let previewGap = false;
+            const previewGapSize = 24;
             let finished = false, lastTime = null, destination = originalIndex;
             root.setPointerCapture(pointerId);
 
@@ -3058,6 +3136,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 }
                 finished = true;
                 clearTimeout(holdTimer);
+                liftMotions.forEach(animation => animation.cancel());
                 cancelAnimationFrame(frame);
                 document.removeEventListener('pointermove', move);
                 document.removeEventListener('touchmove', touchMove);
@@ -3068,11 +3147,46 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 document.removeEventListener('visibilitychange', visibility);
                 if (root.hasPointerCapture(pointerId)) root.releasePointerCapture(pointerId);
                 if (!ghost) return;
+                const oldPositions = new Map(others.map(el => [Number(el.dataset.exerciseIndex),
+                    el.offsetTop + (parseFloat(getComputedStyle(el).translate.split(' ')[1]) || 0)]));
+                card.style.cssText = sourceStyle;
                 ghost.remove();
                 marker.remove();
+                others.forEach(el => el.style.removeProperty('--reorder-shift'));
+                card.classList.remove('track-drag-source');
+                root.classList.remove('exercise-reordering');
+                window.getSelection()?.removeAllRanges();
+                delete container.dataset.reordering;
+                container.dispatchEvent(new Event('track-reorder-end'));
                 card.classList.remove('opacity-30', 'ring-2', 'ring-emerald-400');
                 if (!container.isConnected) return;
                 if (e.type === 'pointerup' && !commit(destination)) redraw();
+                if (e.type === 'pointerup' && animateCards) {
+                    // Settle the real card after saving; never delay the data update for animation.
+                    requestAnimationFrame(() => {
+                        const deck = document.getElementById('memberExercisesContainer');
+                        const order = Array.from({length:others.length + 1}, (_, i) => i);
+                        order.splice(destination, 0, order.splice(originalIndex, 1)[0]);
+                        if (deck && destination !== originalIndex) Array.from(deck.children).forEach((el, index) => {
+                            const oldTop = oldPositions.get(order[index]);
+                            if (oldTop === undefined) return;
+                            const delta = oldTop - el.offsetTop;
+                            if (Math.abs(delta) < 1) return;
+                            const movement = el.animate([{translate:'0 ' + delta + 'px'}, {translate:'0 0'}],
+                                {duration:500, fill:'backwards', easing:'cubic-bezier(.2,.75,.25,1)'});
+                            el.addEventListener('pointerdown', () => movement.cancel(), {once:true});
+                        });
+                        const placed = deck?.children[destination];
+                        if (!placed || !placed.isConnected) return;
+                        placed.animate([
+                            {scale:'1'},
+                            {scale:'1.025 .98', offset:0.22},
+                            {scale:'.987 1.018', offset:0.48},
+                            {scale:'1.007 .995', offset:0.74},
+                            {scale:'1'}
+                        ], {duration:320, easing:'ease-out'});
+                    });
+                }
             }
             function cancel() { finish({ pointerId: pointerId, type: 'pointercancel' }); }
             function visibility() { if (document.visibilityState !== 'visible') cancel(); }
@@ -3084,21 +3198,40 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     if (fromHandle || mouseDrag) { clearTimeout(holdTimer); lift(); }
                     else { cancel(); return; }
                 }
-                if (ghost) e.preventDefault();
+                if (ghost) {
+                    if (distance > 12) previewGap = true;
+                    e.preventDefault();
+                }
             }
             function touchMove(e) { if (ghost && e.cancelable) e.preventDefault(); }
 
             // Chỉ di chuyển lớp nổi và vạch thả; không chèn lại các bài khi đang kéo.
             function paint() {
                 ghost.style.transform = 'translate3d(0,' + (pointerY - offsetY - rect.top) + 'px,0)';
-                const bounds = others.map(el => el.getBoundingClientRect());
+                // Hit-test unshifted positions so avoidance animations cannot move the drop target.
+                const bounds = others.map(el => {
+                    const box = el.getBoundingClientRect();
+                    const style = getComputedStyle(el);
+                    const liftShift = liftMotions.get(el)?.playState === 'running' && style.transform !== 'none'
+                        ? new DOMMatrixReadOnly(style.transform).m42 : 0;
+                    const shift = (animateCards ? (parseFloat(style.translate.split(' ')[1]) || 0) : 0) + liftShift;
+                    return {top:box.top - shift, bottom:box.bottom - shift, height:box.height};
+                });
                 let target = bounds.findIndex(b => pointerY < b.top + b.height / 2);
                 if (target < 0) target = others.length;
                 destination = target;
-                const lineY = target < bounds.length ? bounds[target].top - 4
-                    : (bounds.length ? bounds[bounds.length - 1].bottom + 4 : card.getBoundingClientRect().top);
+                if (animateCards && previewGap) others.forEach((el, i) => {
+                    const shift = (i >= target ? previewGapSize : 0) + 'px';
+                    if (el.style.getPropertyValue('--reorder-shift') !== shift) el.style.setProperty('--reorder-shift', shift);
+                });
+                // Follow the visible gap while hit-testing against stable, unshifted positions.
+                const live = animateCards && previewGap ? others.map(el => el.getBoundingClientRect()) : bounds;
+                const before = live[target - 1], after = live[target];
+                const lineY = before && after ? (before.bottom + after.top) / 2
+                    : after ? after.top - (previewGap ? previewGapSize / 2 : 4)
+                    : before ? before.bottom + (previewGap ? previewGapSize / 2 : 4) : rect.top;
                 marker.style.transform = 'translate3d(0,' + lineY + 'px,0)';
-                const visible = schedulePage ? managementDragBounds(scroller) : null;
+                const visible = (schedulePage || animateCards) ? managementDragBounds(scroller) : null;
                 marker.style.opacity = destination === originalIndex || (visible && (lineY < visible.top || lineY >= visible.bottom)) ? '0' : '1';
             }
             function tick(now) {
@@ -3122,9 +3255,26 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             function lift() {
                 if (ghost || finished) return;
                 if (!container.isConnected) { cancel(); return; }
+                document.activeElement?.blur();
+                window.getSelection()?.removeAllRanges();
+                root.classList.add('exercise-reordering');
+                container.dataset.reordering = 'true';
+                container.dispatchEvent(new Event('track-reorder-start'));
                 hideAllPredictiveDropdowns();
                 ghost = card.cloneNode(true);
+                // The floating copy leaves Track's CSS ancestors: preserve its exact computed layout.
+                if (isTrack) {
+                    const originals = [card, ...card.querySelectorAll('*')];
+                    const copies = [ghost, ...ghost.querySelectorAll('*')];
+                    originals.forEach((el, i) => {
+                        const style = getComputedStyle(el);
+                        for (const property of style) copies[i].style.setProperty(property, style.getPropertyValue(property));
+                    });
+                }
+                Array.from(ghost.style).filter(property => property.startsWith('animation')).forEach(property => ghost.style.removeProperty(property));
                 ghost.removeAttribute('data-exercise-index');
+                Array.from(ghost.attributes).forEach(attr => { if (attr.name.startsWith('on')) ghost.removeAttribute(attr.name); });
+                ghost.querySelectorAll('.track-card-shade').forEach(el => el.remove());
                 ghost.removeAttribute('data-routine-exercise-index');
                 ghost.removeAttribute('id');
                 ghost.querySelectorAll('*').forEach(el => {
@@ -3148,6 +3298,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 }
                 marker = document.createElement('div');
                 marker.setAttribute('aria-hidden', 'true');
+                if (isTrack) marker.style.display = 'none';
                 Object.assign(marker.style, {
                     position: 'fixed', left: rect.left + 'px', top: '0', width: rect.width + 'px',
                     height: '3px', borderRadius: '3px', background: '#34d399',
@@ -3155,12 +3306,26 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     zIndex: '101', willChange: 'transform'
                 });
                 (schedulePage || document.body).appendChild(ghost);
+                if (animateCards) {
+                    ghost.classList.add('track-drag-bubble');
+                }
                 document.body.appendChild(marker);
-                card.classList.add('opacity-30', 'ring-2', 'ring-emerald-400');
+                if (isTrack) {
+                    const beforeLift = new Map(others.map(el => [el, el.offsetTop]));
+                    card.classList.add('track-drag-source');
+                    card.style.setProperty('display', 'none', 'important');
+                    ghost.style.boxShadow = '0 0 0 1px #34d399';
+                    if (animateCards) others.forEach(el => {
+                        const distance = beforeLift.get(el) - el.offsetTop;
+                        if (Math.abs(distance) < 1) return;
+                        liftMotions.set(el, el.animate([{transform:'translateY(' + distance + 'px) scale(.97)'}, {transform:'translateY(0) scale(.97)'}],
+                            {duration:500, easing:'cubic-bezier(.2,.75,.25,1)'}));
+                    });
+                } else card.classList.add('opacity-30', 'ring-2', 'ring-emerald-400');
                 paint();
                 frame = requestAnimationFrame(tick);
             }
-            const holdTimer = fromHandle ? null : setTimeout(lift, 120);
+            const holdTimer = fromHandle ? null : setTimeout(lift, 350);
             if (fromHandle) lift();
             document.addEventListener('pointermove', move, { passive: false });
             document.addEventListener('touchmove', touchMove, { passive: false });
@@ -3175,7 +3340,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         function handleSetInputKey(event, input) {
             if (event.key !== 'Enter') return;
             event.preventDefault();
-            const fields = [...input.closest('tbody').querySelectorAll('input[type="number"]')];
+            const fields = [...input.closest('tbody').querySelectorAll('input[type="number"], input[data-reps-input]')];
             const next = fields[fields.indexOf(input) + 1];
             if (next) next.focus({ preventScroll: true });
             else input.blur();
@@ -3344,7 +3509,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                         <input data-weight-input type="number" inputmode="decimal" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
                     </td>
                     <td data-set-input-hit-area class="py-1.5 pr-1.5 cursor-pointer">
-                        <input type="number" inputmode="decimal" step="0.5" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
+                        <input data-reps-input type="text" inputmode="decimal" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
                     </td>
                     <td class="py-1.5 pr-1.5">
                         <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1); updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'rir', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'rir', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none">
@@ -3381,7 +3546,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const previousNote = getPreviousExerciseNote(member, ex.name, suggestDate);
                 const sugHtml = sug ? renderSuggestionRow(member, exIndex, sug, lastSession || sug.last) + renderStrengthTransfer(member, exIndex, ex.name, suggestDate, transfer) : renderLastSessionRow(lastSession, false);
                 return `
-                    <div data-exercise-index="${exIndex}" class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
+                    <div data-exercise-index="${exIndex}" onpointerdown="startExerciseReorder(event, '${member.id}', ${exIndex})" oncontextmenu="if(!event.target.closest('input,textarea,select')) event.preventDefault()" class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
                         <div class="flex justify-between items-center gap-2 border-b border-slate-700 pb-2">
                             <div class="flex flex-1 min-w-0 items-center gap-1.5">
                             ${ex.transferFrom ? `<div class="flex-1 min-w-0 max-w-xs bg-slate-900 border border-slate-500 rounded-lg px-2.5 py-1 text-sm font-extrabold text-white" title="Bài trước khi transfer">${escapeTextValue(ex.transferFrom)}</div>` : `
@@ -3469,7 +3634,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const safeName = String(e.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
                 const safeCat = String(EXERCISE_CATEGORIES[resolvedExerciseCategory(e)]).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 html += `
-                    <button type="button" onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="selectPredictiveExercise('${memberId}', ${exIndex}, this.dataset.exerciseName)" data-exercise-name="${encodeURIComponent(e.name || '')}" class="px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex w-full text-left justify-between items-center border-b border-slate-800/40 last:border-0">
+                    <button type="button" onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="selectPredictiveExercise('${memberId}', ${exIndex}, this.dataset.exerciseName)" data-exercise-name="${encodeURIComponent(e.name || '')}" class="exercise-option px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex w-full text-left justify-between items-center border-b border-slate-800/40 last:border-0">
                         <span class="font-bold text-slate-200">${safeName}</span>
                         <span class="text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">${safeCat}</span>
                     </button>
@@ -3761,7 +3926,10 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const ex = member && member.logs[date]?.exercises[exIndex];
             const set = ex && ex.sets[setIndex];
             if (!set || !['weight','reps','rir'].includes(field)) return;
-            const number = parseFloat(val);
+            // Keep decimal comma input intact; native number inputs can discard it on iOS.
+            const normalized = field === 'reps' ? String(val).trim().replace(',', '.') : val;
+            if (field === 'reps' && normalized !== '' && !/^\d*\.?\d+$/.test(normalized)) return;
+            const number = parseFloat(normalized);
             const next = field === 'rir' ? (Number.isFinite(number) ? Math.min(9,Math.max(0,Math.round(number))) : '') : (Number.isFinite(number) ? number || '' : '');
             if (set[field] !== next) { set[field] = next; persistData(); }
             const card = input ? input.closest('[data-exercise-index]') : (activeTrackMemberId === memberId && window.appData.activeTab === 'track' ? document.querySelector('[data-exercise-index="'+exIndex+'"]') : null);
@@ -4172,7 +4340,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const safeName = String(e.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
                 const encodedName = encodeURIComponent(e.name || '');
                 const safeCategory = String(EXERCISE_CATEGORIES[resolvedExerciseCategory(e)]).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                return `<div onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="selectRoutinePredictiveExercise(${rIndex}, ${exIdx}, '${encodedName}')" class="px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex justify-between items-center border-b border-slate-800/40 last:border-0"><span class="font-bold text-slate-200">${safeName}</span><span class="text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">${safeCategory}</span></div>`;
+                return `<div onpointerdown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="selectRoutinePredictiveExercise(${rIndex}, ${exIdx}, '${encodedName}')" class="exercise-option px-3 py-2 hover:bg-slate-800 text-xs text-white cursor-pointer flex justify-between items-center border-b border-slate-800/40 last:border-0"><span class="font-bold text-slate-200">${safeName}</span><span class="text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">${safeCategory}</span></div>`;
             }).join('');
             dropdown.classList.remove('hidden');
         }
