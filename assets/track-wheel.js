@@ -1,5 +1,10 @@
 (() => {
     'use strict';
+    const standaloneMode = matchMedia('(display-mode: standalone)');
+    const updateAppMode = () => document.documentElement.classList.toggle('standalone-app',
+        navigator.standalone === true || standaloneMode.matches);
+    updateAppMode();
+    standaloneMode.addEventListener('change', updateAppMode);
     const WHEEL_THRESHOLD = 40, GESTURE_GAP = 280;
     let deck, cleanup, refresh;
     const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -26,6 +31,7 @@
         let layerAnchor = 0;
         function paint(position = root.scrollTop) {
             frame = 0;
+            if (root.dataset.reordering) return;
             if (paintedCards === cards && paintedActive === active && paintedPosition === position && paintedLayer === layerAnchor) return;
             const selectionChanged = paintedCards !== cards || paintedActive !== active;
             paintedCards = cards;
@@ -47,14 +53,14 @@
             if (keyboardOpen) visualIndex = active;
             cards.forEach((card, index) => {
                 const distance = Math.abs(index - visualIndex);
-                const hidden = distance >= 3;
+                const hidden = false;
                 const visibility = hidden ? 'hidden' : '';
                 if (card.style.visibility !== visibility) {
                     card.style.visibility = visibility;
                     card.style.willChange = hidden ? '' : 'transform';
                 }
                 if (hidden && !selectionChanged) return;
-                const stops = [1, .44, .14, 0];
+                const stops = [1, .44, .44, .44];
                 const lower = Math.min(2, Math.floor(distance));
                 const mix = Math.min(1, distance - lower);
                 const brightness = stops[lower] + (stops[lower + 1] - stops[lower]) * mix;
@@ -64,7 +70,7 @@
                 const isOutgoing = index === layerAnchor && distance > 0;
                 const scaleDistance = isOutgoing && distance < 1
                     ? 1 - (1 - distance) ** 4
-                    : Math.min(2, distance);
+                    : Math.min(1, distance);
                 card.style.transform = 'translateZ(0) scale(' + (1 - scaleDistance * .03).toFixed(4) + ')';
                 // Unique layers prevent DOM order from lifting the following card
                 // while both cards are between their resting positions.
@@ -122,7 +128,7 @@
             glideFrame = requestAnimationFrame(glide);
             return duration;
         }
-        function choose(index, vibrate = true, velocity = 0) {
+        function choose(index, vibrate = true, velocity = 0, smooth = true) {
             index = Math.max(0, Math.min(cards.length - 1, index));
             if (index < 0) return;
             const direction = index < active ? -1 : 1;
@@ -130,7 +136,7 @@
             active = index;
             queuePaint();
             const range = bounds(active);
-            movingUntil = performance.now() + scroll(direction < 0 ? range.end : range.start, true, velocity);
+            movingUntil = performance.now() + scroll(direction < 0 ? range.end : range.start, smooth, velocity);
             if (changed && vibrate && typeof navigator.vibrate === 'function') {
                 try { navigator.vibrate(12); } catch (_) { /* Unsupported device policy. */ }
             }
@@ -182,6 +188,7 @@
             };
         }, {passive: true});
         on('touchmove', event => {
+            if (root.dataset.reordering) { if(event.cancelable) event.preventDefault(); return; }
             if (!touch || event.touches.length !== 1) { touch = null; return; }
             const p = event.touches[0], dy = touch.y - p.clientY, dx = touch.x - p.clientX;
             if (!touch.dragging && (Math.abs(dy) < 8 || Math.abs(dx) > Math.abs(dy))) return;
@@ -254,6 +261,15 @@
                 cell?.querySelector('input')?.focus({preventScroll: true});
             }
         }, {capture: true});
+        on('track-reorder-start', () => {
+            touch = null;
+            cancelAnimationFrame(glideFrame);
+            glideFrame = 0;
+            setEdgeOffset(0);
+            suppressClickUntil = performance.now() + 500;
+        });
+        on('track-reorder-end', () => { suppressClickUntil = performance.now() + 500; layout(); });
+        on('track-select-index', event => { update(); layout(); choose(event.detail, false, 0, false); });
         let noteTap = null;
         on('pointerdown', event => {
             const input = event.target;
@@ -269,7 +285,7 @@
                 noteTap = { input, id: event.pointerId, x: event.clientX, y: event.clientY };
                 return;
             }
-            if (!keyboardOpen || !input.matches('input[type="number"]')) return;
+            if (!keyboardOpen || !input.matches('input[type="number"], input[data-reps-input]')) return;
             event.preventDefault();
             input.focus({preventScroll: true});
         });
@@ -325,6 +341,7 @@
         });
         const observer = new ResizeObserver(scheduleLayout);
         function layout() {
+            if (root.dataset.reordering) return;
             cachedRanges = null;
             paintedPosition = undefined;
             if (!root.isConnected || !cards.length) return;
@@ -375,7 +392,8 @@
                 shades.set(card, shade);
             }
             cachedRanges = null;
-            active = Math.max(0, Math.min(cards.length - 1, cards.includes(old) ? cards.indexOf(old) : active));
+            const focused = cards.indexOf(document.activeElement?.closest('[data-exercise-index]'));
+            active = focused >= 0 ? focused : Math.max(0, Math.min(cards.length - 1, cards.includes(old) ? cards.indexOf(old) : active));
             observer.disconnect();
             observer.observe(root);
             cards.forEach(card => observer.observe(card));
@@ -447,6 +465,7 @@
             });
         }
         on('scroll', () => {
+            if (root.dataset.reordering) return;
             if (keyboardOpen && editingScroll !== null && Math.abs(root.scrollTop - editingScroll) > 1) {
                 root.scrollTop = editingScroll;
             }

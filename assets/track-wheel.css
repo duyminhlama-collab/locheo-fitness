@@ -33,10 +33,31 @@ body.track-layout #appContent { flex: 1; min-height: 0; overflow: hidden; displa
 #trackBottomActions > div { min-width: 0; }
 #memberExercisesContainer.track-deck { flex: 1 1 0; height: auto; min-height: 0; overflow: hidden; overscroll-behavior: none; padding: 32px 5px; position: relative; isolation: isolate; }
 .track-deck > [data-exercise-index] { position: relative; z-index: 1; translate: 0 var(--track-edge-offset, 0px); transform: translateZ(0); transition: border-color 160ms ease; }
+.track-deck > [data-exercise-index] { touch-action:pan-x; }
+.track-deck[data-reordering] > [data-exercise-index] { translate:0 var(--reorder-shift, 0px) !important; transition:translate 300ms cubic-bezier(.2,.75,.25,1); }
+.track-deck[data-reordering] > .track-drag-source { display:none !important; visibility:hidden !important; }
+.track-drag-bubble { transform-origin:center; animation:track-bubble-lift 360ms both; }
+@keyframes track-bubble-lift {
+    0% { scale:1; }
+    35% { scale:1.018 .99; }
+    68% { scale:.996 1.008; }
+    100% { scale:1; }
+}
+@media (prefers-reduced-motion:reduce) {
+    .track-deck[data-reordering] > [data-exercise-index] { transition:none; }
+    .track-drag-bubble { animation:none; }
+}
+/* Safari must not start a text selection while a lifted card crosses inputs. */
+html.exercise-reordering, html.exercise-reordering * {
+    -webkit-user-select:none !important;
+    user-select:none !important;
+    -webkit-touch-callout:none !important;
+}
 #memberExercisesContainer.track-deck > [data-exercise-index] + [data-exercise-index] { margin-top: 8px; }
-.track-deck > [data-exercise-index].track-active { z-index: 3; border-color: #34d399; box-shadow: 0 0 0 1px #34d39955, 0 4px 10px #02061780; }
+.track-deck > [data-exercise-index].track-active { z-index: 3; border-color: #34d399 !important; box-shadow: 0 0 0 1px #34d399, 0 4px 10px #02061780 !important; }
+.track-drag-bubble { border-color:#34d399 !important; box-shadow:0 0 0 1px #34d399 !important; }
 @media (max-width: 639px) {
-    body.track-layout { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+    body.track-layout { padding-bottom: var(--mobile-dock-height); }
     body.track-layout #appContent { padding: 5px 7px; gap: 4px; }
     #memberExercisesContainer.track-deck { padding-inline: clamp(14px, 4.5vw, 24px); }
     #trackMemberContent, #trackMemberContent > div { gap: 4px; }
@@ -84,15 +105,29 @@ body.track-layout .entry-suggestions { transition: none; }
     font-weight: 700;
     font-size: 13px;
 }
+#trackBottomActions > div { display: flex; align-items: stretch; }
 #trackBottomActions select {
-    background: #282656;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-text-fill-color: currentColor;
+    accent-color: #e0e7ff;
+    padding-right: 26px;
+    line-height: 1.5;
+    background: #282656 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23e0e7ff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 8px center / 16px;
     border-color: #6366a5;
     color: #e0e7ff;
 }
 @media (max-width: 639px) {
+    :root { --dock-lift:0px; --mobile-dock-height: calc(64px + var(--dock-lift) + env(safe-area-inset-bottom, 0px)); }
+    :root.standalone-app { --dock-lift:12px; }
+    /* Avoid a second fixed viewport inside Track's fixed body on mobile Safari. */
+    :root:not(.standalone-app) body.track-layout #mobileNavigationDock {
+        position:absolute;
+        bottom:0;
+    }
     #mobileNavigationDock {
-        height: calc(64px + env(safe-area-inset-bottom));
-        padding: 4px 7px calc(14px + env(safe-area-inset-bottom));
+        height: var(--mobile-dock-height);
+        padding: 4px 7px calc(14px + var(--dock-lift) + env(safe-area-inset-bottom, 0px));
         gap: 5px;
         background: #101a2c;
         border-color: #334155;
@@ -102,7 +137,7 @@ body.track-layout .entry-suggestions { transition: none; }
     #mobileNavigationDock button {
         flex: 1;
         min-width: 0;
-        min-height: 42px;
+        min-height: 44px;
         justify-content: center;
         gap: 2px;
         border-radius: 9px;
