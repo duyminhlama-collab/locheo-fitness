@@ -3068,7 +3068,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 ch.forEach(x => { counts[trendLevelOf(x.pct)]++; });
                 return { date: d, pct: pct, n: ch.length, newCount: newExercisesByDate.get(d) || 0, counts: counts, level: trendLevelOf(pct) };
             });
-            if (days.length < 2) return null;
+            if (days.length < 8) return null;
             let weightedTotal = 0;
             let totalWeight = 0;
             days.forEach((day, index) => {
@@ -3086,7 +3086,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const pending = isWorkoutPending(member, dateStr);
             const tr = computeRecentTrend(member, dateStr);
             const label = '<i class="fa-solid fa-chart-line text-emerald-400 mr-1"></i> Xu hướng tạ: ';
-            if (!tr && !pending) return `<div class="border border-slate-700 bg-slate-900/60 rounded-xl p-3 text-xs text-slate-400">${label}Chưa đủ dữ liệu</div>`;
+            if (!tr) return `<div class="border border-slate-700 bg-slate-900/60 rounded-xl p-3 text-xs text-slate-400">${label}Chưa đủ dữ liệu</div>`;
             const days = pending ? (tr?.days || []).slice(-(TREND_RECENT_DAYS - 1)) : (tr?.days || []);
             const visibleCount = days.length + (pending ? 1 : 0);
             const lv = tr ? TREND_LEVELS[tr.level] : null;
@@ -3125,7 +3125,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const pending = isWorkoutPending(m, today);
                 const tr = computeRecentTrend(m, today);
                 if (!tr) {
-                    if (pending) rows.push(`<button onclick="switchTab('${m.id}')" class="w-full flex items-center justify-between px-3 py-1.5 text-xs"><strong>${escapeTextValue(m.name)}</strong><span class="text-white">${loadFmtDate(today)} Chưa ghi đủ</span></button>`);
+                    rows.push(`<button onclick="switchTab('${m.id}')" class="w-full flex items-center justify-between px-3 py-1.5 text-xs"><strong>${escapeTextValue(m.name)}</strong><span class="text-slate-400">Chưa đủ dữ liệu</span></button>`);
                     return;
                 }
                 const lv = TREND_LEVELS[tr.level];
