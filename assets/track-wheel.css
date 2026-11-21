@@ -34,7 +34,7 @@ body.track-layout #appContent { flex: 1; min-height: 0; overflow: hidden; displa
 #memberExercisesContainer.track-deck { flex: 1 1 0; height: auto; min-height: 0; overflow: hidden; overscroll-behavior: none; padding: 32px 5px; position: relative; isolation: isolate; }
 .track-deck > [data-exercise-index] { position: relative; z-index: 1; translate: 0 var(--track-edge-offset, 0px); transform: translateZ(0); transition: border-color 160ms ease; }
 .track-deck > [data-exercise-index] { touch-action:pan-x; }
-.track-deck[data-reordering] > [data-exercise-index] { translate:0 var(--reorder-shift, 0px) !important; transition:translate 300ms cubic-bezier(.2,.75,.25,1); }
+.track-deck[data-reordering] > [data-exercise-index] { translate:0 var(--reorder-shift, 0px) !important; transition:translate 450ms cubic-bezier(.2,.75,.25,1); }
 .track-deck[data-reordering] > .track-drag-source { display:none !important; visibility:hidden !important; }
 .track-drag-bubble { transform-origin:center; animation:track-bubble-lift 360ms both; }
 @keyframes track-bubble-lift {
@@ -173,3 +173,7 @@ body.track-layout .entry-suggestions { transition: none; }
     }
     #mobileNavigationDock button[aria-current="page"] span { color: #fff; }
 }
+
+/* Let keyboard alignment settle before showing the input caret. */
+.track-deck input.track-caret-pending,
+.track-deck textarea.track-caret-pending { caret-color: transparent !important; }

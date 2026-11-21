@@ -13,9 +13,24 @@
         const controller = new AbortController();
         const on = (type, fn, options = {}) => root.addEventListener(type, fn, {...options, signal: controller.signal});
         let cards = [], active = 0, frame = 0, touch = null;
+        const positionKey = 'lcf-track-position-v1';
+        let savedPosition = null;
+        try {
+            const saved = JSON.parse(localStorage.getItem(positionKey) || 'null');
+            if (saved && saved.context === root.dataset.positionKey && Number.isInteger(saved.index) &&
+                Date.now() >= saved.time && Date.now() - saved.time < 20 * 60 * 1000) savedPosition = saved;
+            else if (saved && Date.now() - saved.time >= 20 * 60 * 1000) localStorage.removeItem(positionKey);
+        } catch (_) {}
+        function rememberPosition() {
+            if (!cards[active] || !root.dataset.positionKey) return;
+            try { localStorage.setItem(positionKey, JSON.stringify({context:root.dataset.positionKey,
+                index:active, name:cards[active].dataset.exerciseName || '', time:Date.now()})); } catch (_) {}
+        }
+        on('input', rememberPosition);
+        on('pointerup', rememberPosition);
+
         let wheelLast = 0, wheelSum = 0, wheelUsed = false, movingUntil = 0;
         let suppressClickUntil = 0;
-        let editingScroll = null, restingScroll = null;
         let centerShift = 0;
         const centeredInset = card => (root.clientHeight - card.offsetHeight) / 2;
         const topInset = card => Math.max(16, centeredInset(card) + centerShift);
@@ -134,6 +149,7 @@
             const direction = index < active ? -1 : 1;
             const changed = index !== active;
             active = index;
+            rememberPosition();
             queuePaint();
             const range = bounds(active);
             movingUntil = performance.now() + scroll(direction < 0 ? range.end : range.start, smooth, velocity);
@@ -320,18 +336,23 @@
             cancelAnimationFrame(frame);
             paint();
         });
-        on('pointerdown', event => {
-            if (keyboardOpen) return;
-            openingOrigin = null;
-            const field = event.target.closest('input, textarea, [data-set-input-hit-area]');
-            const card = field?.closest('[data-exercise-index]');
-            if (card && cards[active] === card) {
-                openingOrigin = { card, top: card.getBoundingClientRect().top - (viewport?.offsetTop || 0) };
-            }
-        }, {capture: true});
+        let caretTimer = 0, pendingCaret = null;
+        function restoreCaret() {
+            clearTimeout(caretTimer);
+            pendingCaret?.classList.remove('track-caret-pending');
+            pendingCaret = null;
+        }
+        on('focusout', restoreCaret);
+        controller.signal.addEventListener('abort', restoreCaret, {once: true});
         on('focusin', event => {
+            restoreCaret();
+            if (event.target.matches('input, textarea')) {
+                pendingCaret = event.target;
+                pendingCaret.classList.add('track-caret-pending');
+                caretTimer = setTimeout(restoreCaret, 500);
+            }
             const index = cards.indexOf(event.target.closest('[data-exercise-index]'));
-            if (index >= 0) active = index;
+            if (index >= 0) { active = index; rememberPosition(); }
             scheduleLayout();
         });
         on('keydown', event => {
@@ -345,35 +366,15 @@
             cachedRanges = null;
             paintedPosition = undefined;
             if (!root.isConnected || !cards.length) return;
-            if (keyboardOpen) {
-                const card = cards[active];
-                const available = root.clientHeight;
-                const margin = 8;
-                // Give the first and last card room to center even at the scroll limits.
-                const padding = Math.ceil(available / 2);
-                root.style.paddingTop = padding + 'px';
-                root.style.paddingBottom = padding + 'px';
-                let target = card.offsetTop - Math.max(margin, (available - card.offsetHeight) / 2);
-                const field = document.activeElement;
-                if (card.offsetHeight > available - 2 * margin && card.contains(field)) {
-                    const fieldRect = field.getBoundingClientRect();
-                    const fieldTop = card.offsetTop + fieldRect.top - card.getBoundingClientRect().top;
-                    target = Math.min(target, fieldTop - margin);
-                    target = Math.max(target, fieldTop + fieldRect.height + margin - available);
-                }
-                root.scrollTop = Math.max(0, target);
-                editingScroll = root.scrollTop;
-            } else {
+            const editing = root.contains(document.activeElement) && document.activeElement.matches('input, textarea');
+            // Leave keyboard focus scrolling to the browser; do not center the card.
+            if (!keyboardOpen && !editing) {
                 const rect = root.getBoundingClientRect();
                 const screenCenter = (viewport?.offsetTop ?? 0) + (viewport?.height ?? innerHeight) / 2;
                 const deckCenter = rect.top + rect.height / 2;
                 centerShift = Math.max(-12, Math.min(12, screenCenter - deckCenter));
                 root.style.paddingTop = topInset(cards[0]) + 'px';
                 root.style.paddingBottom = Math.max(16, centeredInset(cards[cards.length - 1]) - centerShift) + 'px';
-                if (restingScroll !== null) {
-                    root.scrollTop = restingScroll;
-                    restingScroll = null;
-                }
             }
             queuePaint();
         }
@@ -382,6 +383,15 @@
             if (next.length === cards.length && next.every((card, i) => card === cards[i])) return;
             const old = cards[active];
             cards = next;
+            if (savedPosition && cards.length) {
+                const saved = savedPosition;
+                savedPosition = null;
+                const sameIndex = cards[saved.index]?.dataset.exerciseName === saved.name;
+                const byName = saved.name ? cards.findIndex(card => card.dataset.exerciseName === saved.name) : -1;
+                active = sameIndex ? saved.index : byName >= 0 ? byName : Math.min(saved.index, cards.length - 1);
+                active = Math.max(0, active);
+                layerAnchor = active;
+            }
             layerAnchor = Math.max(0, Math.min(layerAnchor, cards.length - 1));
             for (const card of cards) {
                 if (shades.has(card)) continue;
@@ -405,8 +415,6 @@
         let restingHeight = viewport?.height || innerHeight;
         let viewportWidth = innerWidth;
         let keyboardOpen = false;
-        let keyboardSlide;
-        let openingOrigin;
         let layoutFrame = 0;
         function scheduleLayout() {
             if (!layoutFrame) layoutFrame = requestAnimationFrame(() => {
@@ -425,17 +433,7 @@
                 // A keyboard type change can briefly grow the viewport.
                 // Keep the editing session until it is almost fully restored.
                 const nextOpen = mobile.matches && editing && lostHeight > (keyboardOpen ? 24 : 55);
-                const slidingCard = nextOpen !== keyboardOpen && !reduced() ? cards[active] : null;
-                const viewportTop = viewport?.offsetTop || 0;
-                const previousTop = nextOpen && openingOrigin && openingOrigin.card === slidingCard
-                    ? openingOrigin.top
-                    : slidingCard?.getBoundingClientRect().top - viewportTop;
-                if (nextOpen || !editing) openingOrigin = null;
                 if (nextOpen !== keyboardOpen) {
-                    keyboardSlide?.cancel();
-                    keyboardSlide = null;
-                    if (nextOpen) restingScroll = root.scrollTop;
-                    editingScroll = null;
                     cancelAnimationFrame(glideFrame);
                     glideFrame = 0;
                     setEdgeOffset(0);
@@ -452,24 +450,8 @@
                     document.body.style.removeProperty('--keyboard-top');
                 }
                 layout();
-                if (slidingCard) {
-                    // Apply the new layout immediately and animate the selected card from its previous position.
-                    const offset = previousTop - (slidingCard.getBoundingClientRect().top - viewportTop);
-                    if (Math.abs(offset) > 1) {
-                        keyboardSlide = slidingCard.animate(
-                            [{translate: '0 ' + offset + 'px'}, {translate: '0 0px'}],
-                            {duration: nextOpen ? 260 : 200, easing: 'cubic-bezier(0.25, 0.65, 0.35, 1)'}
-                        );
-                    }
-                }
             });
         }
-        on('scroll', () => {
-            if (root.dataset.reordering) return;
-            if (keyboardOpen && editingScroll !== null && Math.abs(root.scrollTop - editingScroll) > 1) {
-                root.scrollTop = editingScroll;
-            }
-        });
         on('focusout', scheduleLayout);
         viewport?.addEventListener('scroll', scheduleLayout, {signal: controller.signal});
         viewport?.addEventListener('resize', scheduleLayout, {signal: controller.signal});
@@ -479,9 +461,10 @@
         root.setAttribute('aria-label', 'Bài tập: vuốt đủ xa hoặc cuộn để chuyển từng bài');
         update();
         layout();
+        if (cards.length) scroll(bounds(active).start, false);
         cancelAnimationFrame(frame);
         paint();
-        return {update, destroy() { controller.abort(); observer.disconnect(); keyboardSlide?.cancel(); setEdgeOffset(0); cancelAnimationFrame(frame); cancelAnimationFrame(layoutFrame); cancelAnimationFrame(glideFrame); document.body.classList.remove('track-layout', 'track-keyboard'); document.body.style.removeProperty('--keyboard-top'); document.body.style.removeProperty('--track-height'); }};
+        return {update, destroy() { controller.abort(); observer.disconnect(); setEdgeOffset(0); cancelAnimationFrame(frame); cancelAnimationFrame(layoutFrame); cancelAnimationFrame(glideFrame); document.body.classList.remove('track-layout', 'track-keyboard'); document.body.style.removeProperty('--keyboard-top'); document.body.style.removeProperty('--track-height'); }};
     }
     function init() {
         const next = document.getElementById('memberExercisesContainer');

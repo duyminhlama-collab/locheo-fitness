@@ -30,7 +30,7 @@ input::placeholder, textarea::placeholder { -webkit-text-fill-color:currentColor
 .exercise-option > span:last-child { flex:none; white-space:nowrap; margin-left:auto; }
 input::placeholder, textarea::placeholder { color:#94a3b8; opacity:1; }
 button, a, select { -webkit-tap-highlight-color:transparent; }
-:where(button,a,input,select,textarea):focus-visible { outline:2px solid #67e8f9 !important; outline-offset:3px; }
+:where(button,a,input,select,textarea,summary,[tabindex]):focus-visible { outline:none !important; }
 button:disabled { opacity:.45; cursor:not-allowed; }
 :where(input,select,textarea):disabled { opacity:.65; }
 /* Overview: readable hierarchy, calm surfaces, consistent card rhythm. */
