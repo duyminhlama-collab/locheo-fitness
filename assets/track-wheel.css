@@ -54,7 +54,9 @@ html.exercise-reordering, html.exercise-reordering * {
     -webkit-touch-callout:none !important;
 }
 #memberExercisesContainer.track-deck > [data-exercise-index] + [data-exercise-index] { margin-top: 8px; }
-.track-deck > [data-exercise-index].track-active { z-index: 3; border-color: #34d399 !important; box-shadow: 0 0 0 1px #34d399, 0 4px 10px #02061780 !important; }
+.track-deck > [data-exercise-index] { border-color: rgba(52, 211, 153, var(--selection-opacity, 0)) !important; box-shadow: 0 0 0 1px rgba(52, 211, 153, var(--selection-opacity, 0)), 0 4px 10px #02061780 !important; transition: none; }
+.track-deck > [data-exercise-index].track-active { z-index: 3; }
+.track-deck[data-reordering] > .track-active { --selection-opacity: 1 !important; }
 .track-drag-bubble { border-color:#34d399 !important; box-shadow:0 0 0 1px #34d399 !important; }
 @media (max-width: 639px) {
     body.track-layout { padding-bottom: var(--mobile-dock-height); }

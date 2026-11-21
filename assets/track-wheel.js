@@ -68,6 +68,7 @@
             if (keyboardOpen) visualIndex = active;
             cards.forEach((card, index) => {
                 const distance = Math.abs(index - visualIndex);
+                card.style.setProperty('--selection-opacity', Math.max(0, Math.min(1, (1 - distance - 0.25) / 0.5)).toFixed(3));
                 const hidden = false;
                 const visibility = hidden ? 'hidden' : '';
                 if (card.style.visibility !== visibility) {
@@ -301,7 +302,7 @@
                 noteTap = { input, id: event.pointerId, x: event.clientX, y: event.clientY };
                 return;
             }
-            if (!keyboardOpen || !input.matches('input[type="number"], input[data-reps-input]')) return;
+            if (!keyboardOpen || !input.matches('input[type="number"], input[data-weight-input], input[data-reps-input]')) return;
             event.preventDefault();
             input.focus({preventScroll: true});
         });
