@@ -43,9 +43,9 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
     <link rel="apple-touch-icon" href="./assets/icons/app-icon.png">
 
     <!-- Tailwind CSS CDN -->
-    <link rel="stylesheet" href="./assets/app.css?v=8e3be40df808">
-    <link rel="stylesheet" href="./assets/track-wheel.css?v=b44d8f5fdc99">
-    <script defer src="./assets/track-wheel.js?v=c2a830826e8d"></script>
+    <link rel="stylesheet" href="./assets/app.css?v=9827f6733580">
+    <link rel="stylesheet" href="./assets/track-wheel.css?v=d1ce92c4e91e">
+    <script defer src="./assets/track-wheel.js?v=d85c38fffeeb"></script>
     <link rel="stylesheet" href="./assets/vendor/fontawesome/css/all.min.css?v=58c6906b737c">
     <script defer src="./assets/offline-storage.js?v=14fdc874c6e6"></script>
     <script defer src="./assets/vendor/chart-4.4.8.umd.js?v=e4cf4d144b22"></script>
@@ -143,6 +143,17 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             visibility: hidden;
             transition: grid-template-rows 220ms ease, opacity 160ms ease, visibility 220ms;
         }
+        .set-advice-grid { display: grid; grid-template-columns: max-content max-content max-content minmax(0, 1fr) max-content; align-items: center; align-content: center; gap: 2px 5px; padding: 4px 6px; font-size: 10px; line-height: 1.3; font-variant-numeric: tabular-nums; }
+        .set-advice-row { display: contents; }
+        .set-advice-label { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+        .set-advice-label i { width: 11px; text-align: center; }
+        .set-advice-load, .set-advice-rir { white-space: nowrap; }
+        .set-advice-rir:not(:empty)::before, .set-advice-rm::before { content: "•"; margin-right: 4px; font-weight: 400; }
+        .set-advice-tail { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
+        .set-advice-rm { white-space: nowrap; }
+        .set-advice-status { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; justify-self: end; white-space: nowrap; padding: 3px 7px; font-size: 9px; line-height: 1.4; }
+        .set-advice-row.is-suggestion > span { font-weight: 700; }
+        .set-advice-row.is-suggestion .set-advice-rir, .set-advice-row.is-suggestion .set-advice-rm { color: #6ee7b7; }
         .entry-suggestions > .entry-suggestions-content { min-height: 0; overflow: hidden; }
         [data-exercise-index]:has(input[type="number"]:focus, input[data-reps-input]:focus, textarea:focus) > .entry-suggestions,
         [data-exercise-index].is-editing-set > .entry-suggestions,
@@ -1306,6 +1317,37 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 saveLocalDataOnly();
             }
 
+            const resumeKey = 'lcf-last-active-v1';
+            let lastActivity = 0;
+            try {
+                lastActivity = Number(localStorage.getItem(resumeKey)) ||
+                    JSON.parse(localStorage.getItem('lcf-track-position-v1') || 'null')?.time || 0;
+            } catch (_) {}
+            function expireResume() {
+                if (!lastActivity || Date.now() - lastActivity < 20 * 60 * 1000) return false;
+                try { localStorage.removeItem('lcf-track-position-v1'); } catch (_) {}
+                window.appData.activeTab = 'overview';
+                saveLocalDataOnly();
+                return true;
+            }
+            function noteActivity() {
+                lastActivity = Date.now();
+                try { localStorage.setItem(resumeKey, String(lastActivity)); } catch (_) {}
+            }
+            function resumeApp() {
+                if (document.hidden) return;
+                if (expireResume()) { renderTabs(); renderContent(); }
+                noteActivity();
+            }
+            expireResume();
+            noteActivity();
+            document.addEventListener('pointerdown', noteActivity, {passive:true});
+            document.addEventListener('input', noteActivity, {passive:true});
+            document.addEventListener('keydown', noteActivity, {passive:true});
+            document.addEventListener('wheel', noteActivity, {passive:true});
+            document.addEventListener('visibilitychange', resumeApp);
+            window.addEventListener('pageshow', resumeApp);
+
             // Chuyển dữ liệu cũ từng lưu ID thành viên làm tab.
             const validMemberIds = (window.appData.members || []).map(m => m.id);
             const savedTrackMember = appStorage.getItem(TRACK_MEMBER_KEY);
@@ -2165,7 +2207,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     <div id="memberTrendPanel">${renderTrendPanel(member, dateStr)}</div>
 
                     <!-- Danh sách các bài tập trong ngày -->
-                    <div class="space-y-2.5" id="memberExercisesContainer">
+                    <div class="space-y-2.5" id="memberExercisesContainer" data-position-key="${escapeAttrValue(member.id + ':' + dateStr)}">
                         ${renderMemberExerciseList(member, currentLog)}
                     </div>
 
@@ -2361,8 +2403,29 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             return slope === null ? null : slope * 30;
         }
 
+        // Start a new pace-learning period after an exercise or whole-training break.
+        function suggPacePeriod(member, sessions, dateStr) {
+            const trainingDates = Object.keys(member.logs || {}).filter(d => d < dateStr &&
+                (member.logs[d]?.exercises || []).some(ex => (ex.sets || []).some(set =>
+                    parseFloat(set.reps) > 0 && (isBodyweightExercise(ex.name) || parseFloat(set.weight) > 0)))).sort();
+            let start = -Infinity;
+            for (let i = 1; i < trainingDates.length; i++) {
+                if (suggDayNum(trainingDates[i]) - suggDayNum(trainingDates[i - 1]) >= 30)
+                    start = Math.max(start, suggDayNum(trainingDates[i]));
+            }
+            for (let i = 1; i < sessions.length; i++) {
+                if (sessions[i].t - sessions[i - 1].t >= 60) start = Math.max(start, sessions[i].t);
+            }
+            const last = sessions[sessions.length - 1];
+            const lastTraining = trainingDates[trainingDates.length - 1];
+            if ((last && suggDayNum(dateStr) - last.t >= 60) ||
+                (lastTraining && suggDayNum(dateStr) - suggDayNum(lastTraining) >= 30)) return [];
+            return sessions.filter(session => session.t >= start);
+        }
+
         // Learn from recent recorded sessions only; flat and declining sessions count too.
         function suggSessionPace(sessions) {
+            if (sessions.length < 4) return { rate: null, low: null, high: null, samples: sessions.length };
             sessions = suggProgressPoints(sessions);
             const last = sessions[sessions.length - 1];
             const recent = sessions.filter(s => last.t - s.t <= 90).slice(-12);
@@ -2720,7 +2783,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const step = bodyweight ? 2.5 : suggInferStep(name, allWeights);
             const roundTo = (x) => Math.max(bodyweight ? 0 : step, parseFloat((Math.round(x / step) * step).toFixed(2)));
             const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
-            const cadence = suggSessionPace(sessions);
+            const paceSessions = suggPacePeriod(member, sessions, dateStr);
+            const cadence = suggSessionPace(paceSessions);
             const jumpHabit = suggLearnedJump(sessions, step);
             const jumpStep = jumpHabit.step;
             const gapDays = Math.max(0, suggDayNum(dateStr) - last.t);
@@ -2767,7 +2831,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
             // --- Nhịp tăng nhiều tháng ---
             const eLast = last.eff;
-            const rate = suggProgressRate(sessions);               // kg e1RM / tháng
+            const rate = paceSessions.length >= 4 ? suggProgressRate(paceSessions) : null;               // kg e1RM / tháng
             const ratePct = rate === null ? null : (rate / eLast) * 100;
             let speed = 'unknown', speedTxt = 'chưa đủ dữ liệu nhiều tháng';
             if (ratePct !== null) {
@@ -2798,9 +2862,9 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             // --- Tự hiệu chỉnh: chạy lại gợi ý cho các buổi trước (chỉ dùng dữ liệu trước ngày đó),
             //     so với kết quả thực tế. Nếu bạn thường vượt/thấp hơn gợi ý -> buổi sau chỉnh theo (nhẹ tay, 60%).
             let calib = 1, calibN = 0;
-            if (!noCalib && n >= 5) {
+            if (!noCalib && paceSessions.length >= 5) {
                 const ratios = [];
-                for (let i = Math.max(2, n - 6); i < n; i++) {
+                for (let i = Math.max(n - paceSessions.length + 4, n - 6); i < n; i++) {
                     const bs = getWeightSuggestion(member, exName, sessions[i].date, true);
                     if (!bs || !(bs.predE > 0) || (bs.mode !== 'build' && bs.mode !== 'jump')) continue;
                     ratios.push(sessions[i].eff / bs.predE);
@@ -2815,7 +2879,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const eT = useTransfer ? transfer.predictedE : localET;
 
             // --- Trạng thái: đỉnh, đi ngang, tụt ---
-            const recent = sessions.slice(-8);
+            const recent = (paceSessions.length ? paceSessions : [last]).slice(-8);
             let peakIdx = 0;
             recent.forEach((s, i) => { if (s.progress > recent[peakIdx].progress * 1.01) peakIdx = i; });
             const peakE = last.eff * recent[peakIdx].progress / last.progress;
@@ -2834,7 +2898,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 while (reps > 0 && estimate1RM(W, reps, tRIR) > E + 1e-8) reps -= 0.5;
                 return Math.max(0, reps);
             };
-            const nextWeight = Math.round((last.weight + jumpStep) * 100) / 100;
+            let nextWeight = Math.round((last.weight + jumpStep) * 100) / 100;
             const nextReps = Math.min(hi, repsAt(nextWeight, eT));
             const readyToJump = capReps >= hi && nextReps >= lo &&
                 (gKg > 0 || last.rirE > tRIR) && estimate1RM(nextWeight, nextReps, tRIR) <= eT + 1e-8;
@@ -2943,6 +3007,21 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         function trendPctTxt(pct) { const r = Math.round(pct * 10) / 10; return (r > 0 ? '+' : '') + r.toFixed(1).replace('.', ',') + '%'; }
 
         // Xu hướng theo các buổi tập gần đây của 1 thành viên (null nếu chưa đủ dữ liệu)
+        function isWorkoutComplete(member, dateStr) {
+            const exercises = member?.logs?.[dateStr]?.exercises || [];
+            return exercises.length > 0 && exercises.every(ex => String(ex.name || '').trim() &&
+                ex.sets?.length > 0 && ex.sets.every(set => {
+                    const reps = Number(set.reps);
+                    const weight = Number(set.weight);
+                    return Number.isFinite(reps) && reps > 0 && Number.isFinite(weight) &&
+                        (isBodyweightExercise(ex.name) ? weight >= 0 : weight > 0);
+                }));
+        }
+        function isWorkoutPending(member, dateStr) {
+            return dateStr === getTodayISODate() &&
+                (member?.logs?.[dateStr]?.exercises || []).length > 0 && !isWorkoutComplete(member, dateStr);
+        }
+
         function computeRecentTrend(member, dateStr) {
             const dn = suggDayNum(dateStr);
             const names = new Set();
@@ -2957,7 +3036,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const byDate = {};
             const newExercisesByDate = new Map();
             names.forEach(name => {
-                const ss = suggGetSessions(member, name, loadAddDays(dateStr, 1));
+                const ss = suggGetSessions(member, name, loadAddDays(dateStr, 1)).filter(session => !isWorkoutPending(member, session.date));
                 const first = ss[0];
                 if (first && first.t >= dn - TREND_WINDOW_DAYS) {
                     newExercisesByDate.set(first.date, (newExercisesByDate.get(first.date) || 0) + 1);
@@ -2996,12 +3075,16 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
 
         function renderTrendPanel(member, dateStr) {
+            const pending = isWorkoutPending(member, dateStr);
             const tr = computeRecentTrend(member, dateStr);
             const label = '<i class="fa-solid fa-chart-line text-emerald-400 mr-1"></i> Xu hướng tạ: ';
-            if (!tr) return `<div class="border border-slate-700 bg-slate-900/60 rounded-xl p-3 text-xs text-slate-400">${label}Chưa đủ dữ liệu</div>`;
-            const lv = TREND_LEVELS[tr.level];
-            const verdict = { up: 'Bạn đang tiến bộ', flat: 'Sức mạnh đang đi ngang', down: 'Sức mạnh đang giảm' }[tr.level];
-            const rows = tr.days.slice().reverse().map(day => `
+            if (!tr && !pending) return `<div class="border border-slate-700 bg-slate-900/60 rounded-xl p-3 text-xs text-slate-400">${label}Chưa đủ dữ liệu</div>`;
+            const days = pending ? (tr?.days || []).slice(-(TREND_RECENT_DAYS - 1)) : (tr?.days || []);
+            const visibleCount = days.length + (pending ? 1 : 0);
+            const lv = tr ? TREND_LEVELS[tr.level] : null;
+            const verdict = tr ? { up: 'Bạn đang tiến bộ', flat: 'Sức mạnh đang đi ngang', down: 'Sức mạnh đang giảm' }[tr.level] : '';
+            const pendingRow = pending ? `<tr class="border-t border-slate-800 text-white"><td class="px-2 py-1.5 whitespace-nowrap"><time datetime="${dateStr}">${loadFmtDate(dateStr)}</time></td><td colspan="3" class="px-2 py-1.5 text-center">Đang nhập...</td></tr>` : '';
+            const rows = pendingRow + days.slice().reverse().map(day => `
                 <tr class="border-t border-slate-800">
                     <td class="px-2 py-1.5 whitespace-nowrap"><time datetime="${day.date}">${loadFmtDate(day.date)}</time></td>
                     <td class="px-2 py-1.5 text-right ${TREND_LEVELS[day.level].text}">${trendPctTxt(day.pct)}</td>
@@ -3010,14 +3093,14 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 </tr>`).join('');
             return `<details class="border border-slate-700 bg-slate-900/60 rounded-lg text-xs">
                 <summary class="cursor-pointer px-2 py-1.5">
-                    <span class="font-bold text-slate-100">${label}</span><span class="font-bold ${lv.text}"><i class="fa-solid ${lv.icon} mr-1"></i>${verdict} ${trendPctTxt(tr.pct)}</span><span class="block pl-4 text-slate-400">(${tr.days.length} buổi gần đây)</span>
+                    <span class="font-bold text-slate-100">${label}</span>${pending ? '<span class="font-bold text-white">Đang tính...</span>' : `<span class="font-bold ${lv.text}"><i class="fa-solid ${lv.icon} mr-1"></i>${verdict} ${trendPctTxt(tr.pct)}</span>`}<span class="block pl-4 text-slate-400">(${visibleCount} buổi gần đây)</span>
                 </summary>
                 <div class="max-h-[24dvh] overflow-y-auto overscroll-contain">
                     <table aria-label="Các buổi dùng để tính xu hướng tạ" class="w-full text-slate-300">
                         <thead class="sticky top-0 bg-slate-900"><tr>
                             <th scope="col" class="px-2 py-1.5 text-left">Ngày</th>
                             <th scope="col" class="px-2 py-1.5 text-right">Tăng/giảm</th>
-                            <th scope="col" class="px-2 py-1.5 text-right">Số bài cũ (Số bài mới)</th>
+                            <th scope="col" class="px-2 py-1.5 text-right">Số bài cũ (mới)</th>
                             <th scope="col" class="px-2 py-1.5 text-right">Trọng số</th>
                         </tr></thead>
                         <tbody>${rows}</tbody>
@@ -3031,10 +3114,14 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const today = getTodayISODate();
             const rows = [];
             (window.appData.members || []).forEach(m => {
+                const pending = isWorkoutPending(m, today);
                 const tr = computeRecentTrend(m, today);
-                if (!tr) return;
+                if (!tr) {
+                    if (pending) rows.push(`<button onclick="switchTab('${m.id}')" class="w-full flex items-center justify-between px-3 py-1.5 text-xs"><strong>${escapeTextValue(m.name)}</strong><span class="text-white">${loadFmtDate(today)} Chưa ghi đủ</span></button>`);
+                    return;
+                }
                 const lv = TREND_LEVELS[tr.level];
-                rows.push(`<button onclick="switchTab('${m.id}')" class="w-full text-left flex items-center justify-between gap-2 bg-slate-900/60 hover:bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-[11px]"><strong class="text-white">${escapeTextValue(m.name)}</strong><span class="flex items-center gap-1.5 font-semibold ${lv.text}"><i class="fa-solid ${lv.icon} text-[10px]"></i> ${lv.label} ${trendPctTxt(tr.pct)}</span></button>`);
+                rows.push(`<button onclick="switchTab('${m.id}')" class="w-full text-left flex items-center justify-between gap-2 bg-slate-900/60 hover:bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-[11px]"><strong class="text-white">${escapeTextValue(m.name)}</strong><span class="flex items-center gap-1.5 font-semibold ${lv.text}"><i class="fa-solid ${lv.icon} text-[10px]"></i> ${lv.label} ${trendPctTxt(tr.pct)}${pending ? `<span class="text-white">· ${loadFmtDate(today)} Chưa ghi đủ</span>` : ''}</span></button>`);
             });
             if (!rows.length) return '';
             return `
@@ -3124,7 +3211,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             let pointerY = event.clientY, ghost = null, marker = null, frame = null;
             const liftMotions = new Map();
             let previewGap = false;
-            const previewGapSize = 24;
+            const previewGapSize = 30;
             let finished = false, lastTime = null, destination = originalIndex;
             root.setPointerCapture(pointerId);
 
@@ -3160,7 +3247,12 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 container.dispatchEvent(new Event('track-reorder-end'));
                 card.classList.remove('opacity-30', 'ring-2', 'ring-emerald-400');
                 if (!container.isConnected) return;
-                if (e.type === 'pointerup' && !commit(destination)) redraw();
+                if (e.type === 'pointerup' && destination !== originalIndex) {
+                    if (!commit(destination)) redraw();
+                } else if (isTrack) {
+                    // A cancelled or out-of-range drop keeps the same card and order.
+                    container.dispatchEvent(new CustomEvent('track-select-index', {detail:originalIndex}));
+                }
                 if (e.type === 'pointerup' && animateCards) {
                     // Settle the real card after saving; never delay the data update for animation.
                     requestAnimationFrame(() => {
@@ -3217,11 +3309,20 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     const shift = (animateCards ? (parseFloat(style.translate.split(' ')[1]) || 0) : 0) + liftShift;
                     return {top:box.top - shift, bottom:box.bottom - shift, height:box.height};
                 });
-                let target = bounds.findIndex(b => pointerY < b.top + b.height / 2);
-                if (target < 0) target = others.length;
-                destination = target;
+                const draggedTop = pointerY - offsetY;
+                const gapPositions = Array.from({length:bounds.length + 1}, (_, i) => {
+                    const before = bounds[i - 1], after = bounds[i];
+                    return before && after ? (before.bottom + after.top) / 2
+                        : after ? after.top - 4 : before ? before.bottom + 4 : rect.top;
+                });
+                let target = 0;
+                gapPositions.forEach((position, i) => {
+                    if (Math.abs(draggedTop - position) < Math.abs(draggedTop - gapPositions[target])) target = i;
+                });
+                const nearGap = Math.abs(draggedTop - gapPositions[target]) <= 36;
+                destination = isTrack && !nearGap ? originalIndex : target;
                 if (animateCards && previewGap) others.forEach((el, i) => {
-                    const shift = (i >= target ? previewGapSize : 0) + 'px';
+                    const shift = (nearGap ? (i >= target ? previewGapSize / 2 : -previewGapSize / 2) : 0) + 'px';
                     if (el.style.getPropertyValue('--reorder-shift') !== shift) el.style.setProperty('--reorder-shift', shift);
                 });
                 // Follow the visible gap while hit-testing against stable, unshifted positions.
@@ -3406,61 +3507,56 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             persistData();
         }
 
-        function getLastRecordedSession(member, name, dateStr) {
-            const key = capitalizeExerciseName(name), bodyweight = isBodyweightExercise(key);
-            const dates = Object.keys(member.logs || {}).filter(d => d < dateStr).sort().reverse();
-            for (const date of dates) {
-                const sets = [];
-                for (const ex of member.logs[date].exercises || []) {
-                    if (capitalizeExerciseName(ex.name) !== key) continue;
-                    for (const set of ex.sets || []) {
-                        const weight = bodyweight && (set.weight === '' || set.weight == null) ? 0 : parseFloat(set.weight);
-                        const reps = parseFloat(set.reps);
-                        if (!Number.isFinite(weight) || !Number.isFinite(reps) || !(reps > 0) || (bodyweight ? weight < 0 : !(weight > 0))) continue;
-                        const r = parseFloat(set.rir), rir = Number.isFinite(r) ? r : null;
-                        sets.push({date,weight,reps,rir,eff:estimate1RM(weight,reps,rir)});
-                    }
-                }
-                if (sets.length) return sets.reduce((a,b) => {
-                    if (a.eff > 0 || b.eff > 0) return b.eff > a.eff ? b : a;
-                    return b.weight > a.weight || (b.weight === a.weight && b.reps > a.reps) ? b : a;
-                });
-            }
-            return null;
+        function getPreviousSet(member, name, dateStr, setIndex) {
+            const key = capitalizeExerciseName(name);
+            // Pick the date first. Never search further back for a missing set.
+            const date = Object.keys(member.logs || {}).filter(d => d < dateStr).sort().reverse()
+                .find(d => (member.logs[d].exercises || []).some(ex => capitalizeExerciseName(ex.name) === key));
+            if (!date) return null;
+            const exercise = member.logs[date].exercises.find(ex => capitalizeExerciseName(ex.name) === key);
+            const set = exercise.sets?.[setIndex];
+            if (!set) return null;
+            const weight = parseFloat(set.weight), reps = parseFloat(set.reps);
+            if (!Number.isFinite(weight) || !(reps > 0) || (isBodyweightExercise(name) ? weight < 0 : weight <= 0)) return null;
+            const r = parseFloat(set.rir), rir = Number.isFinite(r) ? r : null;
+            return {date, weight, reps, rir, eff: estimate1RM(weight, reps, rir)};
         }
 
-        function renderLastSessionRow(last, hasSuggestion) {
-            if (!last) return '';
-            const parts = last.date.split('-');
-            const date = parts.length === 3 ? parts[2]+'/'+parts[1] : last.date;
-            return '<div class="last-session '+(hasSuggestion ? 'last-session-with-suggestion ' : '')+'flex flex-wrap items-center gap-2 rounded-lg bg-indigo-950/40 border border-indigo-500/30 px-1.5 sm:px-2 py-1 sm:py-1.5 text-[10px] sm:text-[11px] tabular-nums text-slate-400" title="Lần tập gần nhất: '+escapeAttrValue(last.date)+'"><span><i class="fa-regular fa-calendar mr-1" aria-hidden="true"></i>'+escapeTextValue(date)+':</span><span>'+last.weight+' kg × '+last.reps+'</span>'+(last.rir !== null && last.rir !== undefined ? '<span>· RIR '+last.rir+'</span>' : '')+'</div>';
-        }
-
-        function renderSuggestionRow(member, exIndex, sug, previous = sug.last) {
+        function renderSetAdvice(member, exIndex, setIndex) {
+            const date = member.selectedDate || getTodayISODate();
+            const ex = member.logs[date]?.exercises?.[exIndex];
+            if (!ex) return '';
+            const previous = getPreviousSet(member, ex.name, date, setIndex);
+            if (!previous) return '';
+            // Run the existing predictor on this set's own history, keeping dates intact.
+            // This view does not change the saved logs or overall strength calculation.
+            const key = capitalizeExerciseName(ex.name);
+            const logs = Object.fromEntries(Object.entries(member.logs || {}).map(([d, log]) => [d, {
+                ...log, exercises: (log.exercises || []).map(item => capitalizeExerciseName(item.name) === key
+                    ? {...item, sets: item.sets?.[setIndex] ? [item.sets[setIndex]] : []} : item)
+            }]));
+            const transfer = setIndex === 0 ? getStrengthTransfer(member, ex.name, date) : null;
+            const sug = getWeightSuggestion({...member, logs}, ex.name, date, false, transfer);
+            const row = (label, value, suggested) => `<div class="set-advice-row ${suggested ? 'is-suggestion text-indigo-200 font-bold' : 'text-slate-400'}" title="${escapeAttrValue(suggested ? sug.reason : 'Buổi trước: ' + previous.date)}">
+                <span class="set-advice-label"><i class="${suggested ? 'fa-solid fa-wand-magic-sparkles text-amber-400' : 'fa-regular fa-calendar'}" aria-hidden="true"></i>${label}</span>
+                <span class="set-advice-load ${suggested ? 'text-white font-bold' : ''}">${value.weight} kg × ${value.reps}</span>
+                <span class="set-advice-rir">${value.rir == null ? '' : 'RIR ' + value.rir}</span>
+                <span class="set-advice-tail"><span class="set-advice-rm">1RM ${calculate1RM(value.weight, value.reps, value.rir)} kg</span></span>${suggested ? `<span class="set-advice-status rounded-full border ${sug.tag.cls}"><span style="position:relative;top:2px">${sug.tag.text}</span></span>` : '<span aria-hidden="true"></span>'}
+            </div>`;
             const parts = previous.date.split('-');
-            const dd = parts.length === 3 ? `${parts[2]}/${parts[1]}` : previous.date;
-            const rirTxt = previous.rir !== null ? ` RIR ${previous.rir}` : '';
-            const tip = `${sug.reason} · e1RM = TB(Epley, Brzycki, Lander) với Rep + RIR < 37; nhắm RIR ${sug.rir}. Dựa trên ${sug.sessions} buổi (${sug.span} ngày). Buổi ${dd}: ${previous.weight}kg x ${previous.reps}${rirTxt}. Khung rep ${sug.lo}-${sug.hi} (${sug.repSrc}; thường ~${sug.P} rep). Bước tạ ${sug.step}kg. Nhịp tăng: ${sug.rateTxt}, ${sug.speedTxt}.${sug.phase ? ' Chế độ: ' + ({ bulk: 'Bulking', cut: 'Cutting', maintain: 'Maingain' })[sug.phase] + '.' : ''}${sug.bwKg ? ' Cân nặng: ' + sug.bwKg + '.' : ''}${sug.calibN >= 3 ? ' Hiệu chỉnh theo thực tế: ' + ((sug.calib - 1) * 100).toFixed(1) + '%.' : ''}`;
-            const altBtn = sug.alt ? `<button onpointerdown="event.preventDefault()" onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.alt.weight}, ${sug.alt.reps}, ${sug.rir})" title="${sug.alt.label} (RIR ${sug.rir})" class="px-1.5 sm:px-2 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-md text-[10px] sm:text-[11px] font-semibold">${sug.alt.weight}×${sug.alt.reps}</button>` : '';
-            return `
-                        <div title="${escapeAttrValue(tip)}" class="bg-indigo-950/40 border border-indigo-500/30 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 flex flex-wrap items-start justify-between gap-x-1.5 sm:gap-x-3 gap-y-1 sm:gap-y-1.5">
-                            <div class="grid items-center gap-x-1 sm:gap-x-2 gap-y-0.5 sm:gap-y-1 text-[10px] sm:text-[11px] tabular-nums" style="grid-template-columns: auto max-content max-content max-content max-content;">
-                                <span class="text-indigo-200 inline-flex items-center gap-0.5 sm:gap-1"><i class="fa-solid fa-wand-magic-sparkles text-amber-400 w-2.5 sm:w-3 text-center shrink-0" aria-hidden="true"></i><span>Gợi ý:</span></span>
-                                <strong class="text-white text-center">${sug.weight} kg</strong>
-                                <strong class="text-white text-right">× ${sug.reps}</strong>
-                                <span class="text-emerald-300 font-semibold" title="Số rep còn dư nên chừa lại">· RIR ${sug.rir}</span>
-                                <span class="px-1 sm:px-1.5 py-px rounded-full border text-[8px] sm:text-[9px] font-semibold whitespace-nowrap ${sug.tag.cls}">${sug.tag.text}</span>
-                                <span class="text-slate-400 inline-flex items-center gap-0.5 sm:gap-1"><i class="fa-regular fa-calendar w-2.5 sm:w-3 text-center shrink-0" aria-hidden="true"></i><span>${dd}:</span></span>
-                                <span class="text-slate-400 text-center">${previous.weight} kg</span>
-                                <span class="text-slate-400 text-right">× ${previous.reps}</span>
-                                <span class="text-slate-400">${previous.rir !== null && previous.rir !== undefined ? `· RIR ${previous.rir}` : ''}</span>
-                                <span aria-hidden="true"></span>
-                            </div>
-                            <div class="shrink-0 flex flex-wrap items-center gap-1">
-                                ${altBtn}
-                                <button onpointerdown="event.preventDefault()" onclick="applyWeightSuggestion('${member.id}', ${exIndex}, ${sug.weight}, ${sug.reps}, ${sug.rir})" class="px-1.5 sm:px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] sm:text-[11px] font-semibold">Điền</button>
-                            </div>
-                        </div>`;
+            return '<div class="set-advice-grid rounded-lg bg-indigo-950/40 border border-indigo-500/30">' +
+                (sug ? row('Gợi ý:', sug, true) : '') + row(parts[2] + '/' + parts[1] + ':', previous, false) + '</div>';
+        }
+
+        function focusSetAdvice(input, memberId, exIndex) {
+            const card = input.closest('[data-exercise-index]');
+            const panel = card?.querySelector('[data-set-advice]');
+            const setIndex = input.closest('tr')?.sectionRowIndex;
+            const member = window.appData.members.find(m => m.id === memberId);
+            if (!panel || !member || !Number.isInteger(setIndex)) return;
+            if (panel.dataset.setIndex === String(setIndex)) return;
+            panel.dataset.setIndex = String(setIndex);
+            panel.innerHTML = renderSetAdvice(member, exIndex, setIndex);
         }
 
         // Đặt chế độ từ ngày đang xem trở đi (bấm lại chế độ đang bật để bỏ)
@@ -3477,26 +3573,26 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             showToast(cur === mode ? 'Đã bỏ chế độ' : `Đã đặt ${TRAIN_PHASES[mode].label} từ ${pp[2]}/${pp[1]}`);
         }
 
-        function applyWeightSuggestion(memberId, exIndex, weight, reps, rir) {
+        function applyWeightSuggestion(memberId, exIndex, weight, reps, rir, setIndex) {
             const member = window.appData.members.find(m => m.id === memberId);
-            if (!member) return;
-            const dateStr = member.selectedDate || getTodayISODate();
-            const log = member.logs[dateStr];
-            const ex = log && log.exercises[exIndex];
-            if (!ex) return;
-            let filled = 0;
-            (ex.sets || []).forEach(st => {
-                if (!st.weight) {
-                    st.weight = weight;
-                    if (!st.reps) st.reps = reps;
-                    if (typeof rir === 'number' && !isNaN(rir)) st.rir = rir;
-                    filled++;
-                }
-            });
-            if (!filled) { showToast("Các set đã có tạ, không điền đè"); return; }
+            const date = member?.selectedDate || getTodayISODate();
+            const set = member?.logs?.[date]?.exercises?.[exIndex]?.sets?.[setIndex];
+            if (!set) return;
+            if (parseFloat(set.weight) > 0) { showToast('Set đã có tạ, không điền đè'); return; }
+            set.weight = weight;
+            if (!(parseFloat(set.reps) > 0)) set.reps = reps;
+            if (Number.isFinite(rir)) set.rir = rir;
             persistData();
-            refreshMemberExercises(memberId);
-            showToast(`Đã điền gợi ý cho ${filled} set`);
+            const card = document.querySelector(`#memberExercisesContainer > [data-exercise-index="${exIndex}"]`);
+            const row = card?.querySelector('tbody')?.rows[setIndex];
+            if (row) {
+                row.querySelector('[data-weight-input]').value = set.weight;
+                row.querySelector('[data-reps-input]').value = set.reps;
+                row.querySelector('input[inputmode="numeric"]').value = set.rir;
+                row.querySelector('[data-set-rm]').textContent = calculate1RM(set.weight, set.reps, set.rir) + ' kg';
+            }
+            finishSetEditing(memberId);
+            showToast(`Đã điền gợi ý cho set ${setIndex + 1}`);
         }
 
         function renderExerciseSetRow(member, ex, exIndex, s, setIndex, suggestDate) {
@@ -3506,13 +3602,13 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 <tr>
                     <td class="py-1.5 font-mono font-bold text-slate-400">${setIndex + 1}</td>
                     <td data-set-input-hit-area class="py-1.5 pr-1.5 cursor-pointer">
-                        <input data-weight-input type="number" inputmode="decimal" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
+                        <input onfocus="focusSetAdvice(this, '${member.id}', ${exIndex})" data-weight-input type="number" inputmode="decimal" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
                     </td>
                     <td data-set-input-hit-area class="py-1.5 pr-1.5 cursor-pointer">
-                        <input data-reps-input type="text" inputmode="decimal" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
+                        <input onfocus="focusSetAdvice(this, '${member.id}', ${exIndex})" data-reps-input type="text" inputmode="decimal" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
                     </td>
                     <td class="py-1.5 pr-1.5">
-                        <input type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1); updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'rir', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'rir', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none">
+                        <input onfocus="focusSetAdvice(this, '${member.id}', ${exIndex})" type="number" inputmode="numeric" min="0" max="9" step="1" value="${rirVal}" placeholder="-" oninput="if (this.value.length > 1) this.value = this.value.replace(/[^0-9]/g, '').slice(-1); updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'rir', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'rir', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-1 py-1 text-xs font-bold text-center text-amber-300 focus:outline-none">
                     </td>
                     <td data-set-rm class="py-1.5 font-mono text-emerald-400 text-[10px] font-semibold whitespace-nowrap">
                         ${estRM > 0 || (isBodyweightExercise(ex.name) && parseFloat(s.reps) > 0) ? estRM + ' kg' : '-'}
@@ -3541,12 +3637,10 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             return currentLog.exercises.slice(startIndex).map((ex, index) => {
                 const exIndex = startIndex + index;
                 const transfer = getStrengthTransfer(member, ex.name, suggestDate);
-                const sug = getWeightSuggestion(member, ex.name, suggestDate, false, transfer);
-                const lastSession = getLastRecordedSession(member, ex.name, suggestDate);
                 const previousNote = getPreviousExerciseNote(member, ex.name, suggestDate);
-                const sugHtml = sug ? renderSuggestionRow(member, exIndex, sug, lastSession || sug.last) + renderStrengthTransfer(member, exIndex, ex.name, suggestDate, transfer) : renderLastSessionRow(lastSession, false);
+                const sugHtml = `<div data-set-advice data-set-index="0">${renderSetAdvice(member, exIndex, 0)}</div>` + renderStrengthTransfer(member, exIndex, ex.name, suggestDate, transfer);
                 return `
-                    <div data-exercise-index="${exIndex}" onpointerdown="startExerciseReorder(event, '${member.id}', ${exIndex})" oncontextmenu="if(!event.target.closest('input,textarea,select')) event.preventDefault()" class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
+                    <div data-exercise-index="${exIndex}" data-exercise-name="${escapeAttrValue(ex.name || '')}" onpointerdown="startExerciseReorder(event, '${member.id}', ${exIndex})" oncontextmenu="if(!event.target.closest('input,textarea,select')) event.preventDefault()" class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
                         <div class="flex justify-between items-center gap-2 border-b border-slate-700 pb-2">
                             <div class="flex flex-1 min-w-0 items-center gap-1.5">
                             ${ex.transferFrom ? `<div class="flex-1 min-w-0 max-w-xs bg-slate-900 border border-slate-500 rounded-lg px-2.5 py-1 text-sm font-extrabold text-white" title="Bài trước khi transfer">${escapeTextValue(ex.transferFrom)}</div>` : `
@@ -3939,6 +4033,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const rm = exerciseSet1RM(member, ex.name, date, set.weight, set.reps, set.rir);
                 cell.textContent = rm > 0 || (isBodyweightExercise(ex.name) && parseFloat(set.reps) > 0) ? rm+' kg' : '-';
             }
+            finishSetEditing(memberId);
         }
 
         function removeSetFromExercise(memberId, exIndex, setIndex) {
