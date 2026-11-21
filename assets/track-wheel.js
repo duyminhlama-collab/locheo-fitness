@@ -102,6 +102,18 @@
             });
         }
         function queuePaint() { if (!frame) frame = requestAnimationFrame(() => paint()); }
+        let dragFrame = 0, pendingDrag = null;
+        function flushDrag() {
+            cancelAnimationFrame(dragFrame);
+            dragFrame = 0;
+            if (!pendingDrag) return;
+            const {requested, excess} = pendingDrag;
+            pendingDrag = null;
+            scroll(requested, false);
+            setEdgeOffset(reduced() ? 0 : -72 * excess / (144 + Math.abs(excess)));
+            cancelAnimationFrame(frame);
+            paint();
+        }
         let glideFrame = 0;
         let edgeOffset = 0;
         function setEdgeOffset(offset) {
@@ -132,7 +144,7 @@
             const started = performance.now();
             function glide(now) {
                 const progress = Math.min(1, (now - started) / duration);
-                const eased = velocity ? progress ** 2 * (3 - 2 * progress) + initialSlope * progress * (1 - progress) ** 2 : 1 - (1 - progress) ** 3;
+                const eased = velocity ? progress ** 2 * (3 - 2 * progress) + initialSlope * progress * (1 - progress) ** 2 : progress ** 3 * (10 - 15 * progress + 6 * progress ** 2);
                 const position = from + distance * eased;
                 root.scrollTop = position;
                 if (initialOffset) setEdgeOffset(initialOffset * (1 - progress) ** 3);
@@ -223,12 +235,13 @@
             touch.samples.push({dy, time: now});
             while (touch.samples.length > 1 && now - touch.samples[0].time > 100) touch.samples.shift();
             const requested = touch.top + dy;
-            scroll(requested, false);
             const limit = Math.max(0, root.scrollHeight - root.clientHeight);
             const excess = requested - Math.max(0, Math.min(limit, requested));
-            setEdgeOffset(reduced() ? 0 : -72 * excess / (144 + Math.abs(excess)));
+            pendingDrag = {requested, excess};
+            if (!dragFrame) dragFrame = requestAnimationFrame(flushDrag);
         }, {passive: false});
         function endTouch(event, cancelled) {
+            flushDrag();
             if (!touch) return;
             const gesture = touch;
             touch = null;
@@ -465,7 +478,7 @@
         if (cards.length) scroll(bounds(active).start, false);
         cancelAnimationFrame(frame);
         paint();
-        return {update, destroy() { controller.abort(); observer.disconnect(); setEdgeOffset(0); cancelAnimationFrame(frame); cancelAnimationFrame(layoutFrame); cancelAnimationFrame(glideFrame); document.body.classList.remove('track-layout', 'track-keyboard'); document.body.style.removeProperty('--keyboard-top'); document.body.style.removeProperty('--track-height'); }};
+        return {update, destroy() { controller.abort(); cancelAnimationFrame(dragFrame); pendingDrag = null; observer.disconnect(); setEdgeOffset(0); cancelAnimationFrame(frame); cancelAnimationFrame(layoutFrame); cancelAnimationFrame(glideFrame); document.body.classList.remove('track-layout', 'track-keyboard'); document.body.style.removeProperty('--keyboard-top'); document.body.style.removeProperty('--track-height'); }};
     }
     function init() {
         const next = document.getElementById('memberExercisesContainer');
