@@ -45,7 +45,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
     <!-- Tailwind CSS CDN -->
     <link rel="stylesheet" href="./assets/app.css?v=b5eec10d0ca8">
     <link rel="stylesheet" href="./assets/track-wheel.css?v=f59c07c8f11c">
-    <script defer src="./assets/track-wheel.js?v=da8653713f5e"></script>
+    <script defer src="./assets/track-wheel.js?v=805f905dda77"></script>
     <link rel="stylesheet" href="./assets/vendor/fontawesome/css/all.min.css?v=58c6906b737c">
     <script defer src="./assets/offline-storage.js?v=14fdc874c6e6"></script>
     <script defer src="./assets/vendor/chart-4.4.8.umd.js?v=e4cf4d144b22"></script>
@@ -2036,10 +2036,17 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                     }
                 });
 
+                const endpointRadius = values => {
+                    const first = values.findIndex(value => value !== null && Number.isFinite(value));
+                    let last = -1;
+                    values.forEach((value, index) => { if (value !== null && Number.isFinite(value)) last = index; });
+                    return values.map((_, index) => index === first || index === last ? 3 : 0);
+                };
                 datasets1RM.push({
                     label: member.name,
                     data: data1RM,
-                    pointRadius: 0,
+                    pointRadius: endpointRadius(data1RM),
+                    pointBackgroundColor: colorObj.border,
                     borderColor: colorObj.border,
                     backgroundColor: colorObj.bg,
                     borderWidth: 3,
@@ -2050,7 +2057,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 datasetsRelative.push({
                     label: member.name,
                     data: dataRelative,
-                    pointRadius: 0,
+                    pointRadius: endpointRadius(dataRelative),
+                    pointBackgroundColor: colorObj.border,
                     borderColor: colorObj.border,
                     backgroundColor: colorObj.bg,
                     borderWidth: 3,
@@ -2061,7 +2069,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 datasetsWeight.push({
                     label: member.name,
                     data: dataWeight,
-                    pointRadius: 0,
+                    pointRadius: endpointRadius(dataWeight),
+                    pointBackgroundColor: colorObj.border,
                     borderColor: colorObj.border,
                     backgroundColor: colorObj.bg,
                     borderWidth: 2.5,
@@ -3318,8 +3327,16 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 gapPositions.forEach((position, i) => {
                     if (Math.abs(draggedTop - position) < Math.abs(draggedTop - gapPositions[target])) target = i;
                 });
-                const nearGap = Math.abs(draggedTop - gapPositions[target]) <= 36;
-                destination = isTrack && !nearGap ? originalIndex : target;
+                // Drops beyond the visible deck are explicit first/last positions.
+                const dropBounds = isTrack ? managementDragBounds(scroller) : null;
+                const above = isTrack && (pointerY <= dropBounds.top || draggedTop <= gapPositions[0]);
+                const below = isTrack && (pointerY >= dropBounds.bottom || draggedTop >= gapPositions[gapPositions.length - 1]);
+                if (above) target = 0;
+                else if (below) target = others.length;
+                const gapDistance = Math.abs(draggedTop - gapPositions[target]);
+                const nearGap = above || below || gapDistance <= 36;
+                const acceptedGap = above || below || gapDistance <= 90;
+                destination = isTrack && !acceptedGap ? originalIndex : target;
                 if (animateCards && previewGap) others.forEach((el, i) => {
                     const shift = (nearGap ? (i >= target ? previewGapSize / 2 : -previewGapSize / 2) : 0) + 'px';
                     if (el.style.getPropertyValue('--reorder-shift') !== shift) el.style.setProperty('--reorder-shift', shift);
@@ -3683,7 +3700,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
                         <div class="text-[11px] font-semibold text-slate-300">
                             <span>Ghi chú</span>
-                            <textarea aria-label="Ghi chú" rows="2" maxlength="1000" placeholder="${escapeAttrValue(previousNote ? 'Buổi trước: ' + previousNote : '')}" oninput="updateExerciseNote('${member.id}', '${suggestDate}', ${exIndex}, this.value)" class="block w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-normal text-slate-100 placeholder:text-slate-500 focus:outline-none">${escapeTextValue(ex.note || '')}</textarea>
+                            <textarea style="width:calc(100% - 32px);margin-inline:auto" aria-label="Ghi chú" rows="2" maxlength="1000" placeholder="${escapeAttrValue(previousNote ? 'Buổi trước: ' + previousNote : '')}" oninput="updateExerciseNote('${member.id}', '${suggestDate}', ${exIndex}, this.value)" class="block w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-normal text-slate-100 placeholder:text-slate-500 focus:outline-none">${escapeTextValue(ex.note || '')}</textarea>
                         </div>
                         <div class="pt-0.5">
                             <button onpointerdown="event.preventDefault()" onclick="addSetToExercise('${member.id}', ${exIndex})" class="h-10 w-28 px-2 py-1 bg-transparent hover:bg-slate-800 text-emerald-400 rounded-lg whitespace-nowrap text-sm font-semibold border border-slate-500 transition">
