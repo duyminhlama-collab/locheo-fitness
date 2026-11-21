@@ -45,7 +45,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
     <!-- Tailwind CSS CDN -->
     <link rel="stylesheet" href="./assets/app.css?v=b5eec10d0ca8">
     <link rel="stylesheet" href="./assets/track-wheel.css?v=d1ce92c4e91e">
-    <script defer src="./assets/track-wheel.js?v=d85c38fffeeb"></script>
+    <script defer src="./assets/track-wheel.js?v=f7137f606b50"></script>
     <link rel="stylesheet" href="./assets/vendor/fontawesome/css/all.min.css?v=58c6906b737c">
     <script defer src="./assets/offline-storage.js?v=14fdc874c6e6"></script>
     <script defer src="./assets/vendor/chart-4.4.8.umd.js?v=e4cf4d144b22"></script>
@@ -155,7 +155,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         .set-advice-row.is-suggestion > span { font-weight: 700; }
         .set-advice-row.is-suggestion .set-advice-rir, .set-advice-row.is-suggestion .set-advice-rm { color: #6ee7b7; }
         .entry-suggestions > .entry-suggestions-content { min-height: 0; overflow: hidden; }
-        [data-exercise-index]:has(input[type="number"]:focus, input[data-reps-input]:focus, textarea:focus) > .entry-suggestions,
+        [data-exercise-index]:has(input[type="number"]:focus, input[data-weight-input]:focus, input[data-reps-input]:focus, textarea:focus) > .entry-suggestions,
         [data-exercise-index].is-editing-set > .entry-suggestions,
         [data-exercise-index] > .entry-suggestions:focus-within {
             grid-template-rows: 1fr; opacity: 1; visibility: visible;
@@ -170,6 +170,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         }
         @media (max-width: 639px) {
             #memberExercisesContainer input[type="number"],
+            #memberExercisesContainer input[data-weight-input],
             #memberExercisesContainer input[data-reps-input] {
                 font-size: 13px;
                 line-height: 20px;
@@ -211,7 +212,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             box-shadow: 0 0 8px rgba(129,140,248,0);
         }
     </style>
-    <link rel="stylesheet" href="./assets/ui-system.css?v=73af5d564d08">
+    <link rel="stylesheet" href="./assets/ui-system.css?v=0c6d32ad0653">
 </head>
 <body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col">
 
@@ -3439,7 +3440,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         function handleSetInputKey(event, input) {
             if (event.key !== 'Enter') return;
             event.preventDefault();
-            const fields = [...input.closest('tbody').querySelectorAll('input[type="number"], input[data-reps-input]')];
+            const fields = [...input.closest('tbody').querySelectorAll('input[type="number"], input[data-weight-input], input[data-reps-input]')];
             const next = fields[fields.indexOf(input) + 1];
             if (next) next.focus({ preventScroll: true });
             else input.blur();
@@ -3600,7 +3601,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 <tr>
                     <td class="py-1.5 font-mono font-bold text-slate-400">${setIndex + 1}</td>
                     <td data-set-input-hit-area class="py-1.5 pr-1.5 cursor-pointer">
-                        <input onfocus="focusSetAdvice(this, '${member.id}', ${exIndex})" data-weight-input type="number" inputmode="decimal" min="0" step="${isBodyweightExercise(ex.name) ? 2.5 : 0.5}" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
+                        <input onfocus="focusSetAdvice(this, '${member.id}', ${exIndex})" data-weight-input type="text" inputmode="decimal" value="${s.weight || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'weight', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
                     </td>
                     <td data-set-input-hit-area class="py-1.5 pr-1.5 cursor-pointer">
                         <input onfocus="focusSetAdvice(this, '${member.id}', ${exIndex})" data-reps-input type="text" inputmode="decimal" value="${s.reps || ''}" placeholder="0" oninput="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onchange="updateSetData('${member.id}', ${exIndex}, this.closest('tr').sectionRowIndex, 'reps', this.value, this)" onblur="finishSetEditing('${member.id}')" enterkeyhint="next" onkeydown="handleSetInputKey(event, this)" class="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none">
@@ -4019,8 +4020,9 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const set = ex && ex.sets[setIndex];
             if (!set || !['weight','reps','rir'].includes(field)) return;
             // Keep decimal comma input intact; native number inputs can discard it on iOS.
-            const normalized = field === 'reps' ? String(val).trim().replace(',', '.') : val;
-            if (field === 'reps' && normalized !== '' && !/^\d*\.?\d+$/.test(normalized)) return;
+            const decimal = field === 'weight' || field === 'reps';
+            const normalized = decimal ? String(val).trim().replace(',', '.') : val;
+            if (decimal && normalized !== '' && !/^\d*\.?\d+$/.test(normalized)) return;
             const number = parseFloat(normalized);
             const next = field === 'rir' ? (Number.isFinite(number) ? Math.min(9,Math.max(0,Math.round(number))) : '') : (Number.isFinite(number) ? number || '' : '');
             if (set[field] !== next) { set[field] = next; persistData(); }
