@@ -454,7 +454,21 @@
             paintedPosition = undefined;
             if (!root.isConnected || !cards.length) return;
             const editing = root.contains(document.activeElement) && document.activeElement.matches('input, textarea');
-            // Leave keyboard focus scrolling to the browser; do not center the card.
+            // Correct only offscreen content, never center the editing card.
+            // Safari can issue a late focus-scroll after the keyboard layout changes.
+            if (keyboardOpen && editing) {
+                const card = cards[active], margin = 8, available = root.clientHeight;
+                let first = card.offsetTop, height = card.offsetHeight;
+                if (height > available - margin * 2) {
+                    const field = document.activeElement;
+                    first += field.getBoundingClientRect().top - card.getBoundingClientRect().top;
+                    height = field.offsetHeight;
+                }
+                const low = Math.max(0, first + height + margin - available);
+                const high = Math.max(low, first - margin);
+                const target = Math.max(low, Math.min(high, root.scrollTop));
+                if (Math.abs(target - root.scrollTop) > 1) root.scrollTop = target;
+            }
             if (!keyboardOpen && !editing) {
                 const rect = root.getBoundingClientRect();
                 const screenCenter = (viewport?.offsetTop ?? 0) + (viewport?.height ?? innerHeight) / 2;
@@ -503,6 +517,7 @@
         let viewportWidth = innerWidth;
         let keyboardOpen = false;
         let keyboardMotion = null;
+        let keyboardHeight = 0, keyboardTop = 0;
         let layoutFrame = 0;
         function scheduleLayout() {
             if (!layoutFrame) layoutFrame = requestAnimationFrame(() => {
@@ -522,11 +537,18 @@
                 // Keep the editing session until it is almost fully restored.
                 const nextOpen = mobile.matches && editing && lostHeight > (keyboardOpen ? 24 : 55);
                 const changed = nextOpen !== keyboardOpen;
-                const card = changed && !reduced() ? cards[active] : null;
+                const top = viewport?.offsetTop || 0;
+                const viewportChanged = height !== keyboardHeight || top !== keyboardTop;
+                const retarget = changed || (viewportChanged && keyboardMotion?.playState === 'running');
+                const card = retarget && !reduced() ? cards[active] : null;
                 const previousTop = card?.getBoundingClientRect().top;
-                if (changed) {
+                if (retarget) {
                     keyboardMotion?.cancel();
                     keyboardMotion = null;
+                }
+                keyboardHeight = height;
+                keyboardTop = top;
+                if (changed) {
                     cancelAnimationFrame(glideFrame);
                     glideFrame = 0;
                     setEdgeOffset(0);
@@ -552,6 +574,7 @@
                 }
             });
         }
+        on('scroll', () => { if (keyboardOpen) scheduleLayout(); });
         on('focusout', event => {
             const card = event.target.closest('[data-exercise-index]');
             requestAnimationFrame(() => {
