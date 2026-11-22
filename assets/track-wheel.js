@@ -325,8 +325,26 @@
                 event.preventDefault();
                 return;
             }
-            const field = input.closest('input[data-weight-input], input[data-reps-input], input[type="number"], textarea')
+            let field = input.closest('input[data-weight-input], input[data-reps-input], input[type="number"], textarea')
                 || input.closest('[data-set-input-hit-area]')?.querySelector('input');
+            if (!field && !input.closest('button, a, select, summary, input, textarea')) {
+                const table = input.closest('table');
+                if (table && input.closest('tbody')) {
+                    let nearest = Infinity;
+                    for (const candidate of table.querySelectorAll('tbody input')) {
+                        const box = candidate.getBoundingClientRect();
+                        const dx = Math.max(box.left - event.clientX, 0, event.clientX - box.right);
+                        const dy = Math.max(box.top - event.clientY, 0, event.clientY - box.bottom);
+                        const distance = Math.hypot(dx, dy);
+                        if (distance <= 18 && distance < nearest) { field = candidate; nearest = distance; }
+                    }
+                }
+                if (!field && cards[active]?.contains(document.activeElement) &&
+                    document.activeElement.matches('input, textarea')) {
+                    event.preventDefault();
+                    fieldClickUntil = performance.now() + 500;
+                }
+            }
             if (!field) return;
             // Resolve the field once, but focus only after the finger lifts. Changing
             // advice/keyboard layout on pointerdown can move another control under it.
