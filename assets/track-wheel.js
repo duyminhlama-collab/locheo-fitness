@@ -316,10 +316,45 @@
         on('track-reorder-end', () => { suppressClickUntil = performance.now() + 500; layout(); });
         on('track-select-index', event => { update(); layout(); choose(event.detail, false, 0, false); });
         let noteTap = null, fieldClickUntil = 0;
+        let gapTap = null;
+        // Safari's touch default can blur an input even after pointerdown was
+        // cancelled. Cancel the touch itself on the non-interactive gaps too.
+        on('touchstart', event => {
+            gapTap = null;
+            const target = event.target;
+            const current = document.activeElement;
+            if (event.touches.length !== 1 || !(cards[active]?.contains(target) || target === root) ||
+                !cards[active]?.contains(current) || !current.matches('input, textarea') ||
+                target.closest('input, textarea, button, a, select, summary, [role="button"]')) return;
+            const point = event.touches[0];
+            let field = current, nearest = Infinity;
+            const table = target.closest('tbody');
+            for (const candidate of table?.querySelectorAll('input') || []) {
+                const box = candidate.getBoundingClientRect();
+                const distance = Math.hypot(Math.max(box.left-point.clientX, 0, point.clientX-box.right),
+                    Math.max(box.top-point.clientY, 0, point.clientY-box.bottom));
+                if (distance <= 18 && distance < nearest) { field = candidate; nearest = distance; }
+            }
+            gapTap = {field, x:point.clientX, y:point.clientY};
+            if (event.cancelable) event.preventDefault();
+        }, {capture:true, passive:false});
+        on('touchmove', event => {
+            const point = event.touches[0];
+            if (gapTap && (!point || Math.hypot(point.clientX-gapTap.x, point.clientY-gapTap.y) >= 8)) gapTap = null;
+        }, {capture:true, passive:true});
+        on('touchend', event => {
+            if (!gapTap) return;
+            const {field} = gapTap;
+            gapTap = null;
+            if (event.cancelable) event.preventDefault();
+            fieldClickUntil = performance.now() + 500;
+            if (field.isConnected && document.activeElement !== field) field.focus({preventScroll:true});
+        }, {capture:true, passive:false});
+        on('touchcancel', () => { gapTap = null; });
         on('pointerdown', event => {
             const input = event.target;
             if (event.pointerType !== 'touch' || !event.isPrimary ||
-                !cards[active]?.contains(input) || input === document.activeElement) return;
+                !(cards[active]?.contains(input) || input === root) || input === document.activeElement) return;
 
             if (glideFrame) {
                 event.preventDefault();
