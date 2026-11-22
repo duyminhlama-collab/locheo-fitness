@@ -323,7 +323,7 @@
             gapTap = null;
             const target = event.target;
             const current = document.activeElement;
-            if (event.touches.length !== 1 || !(cards[active]?.contains(target) || target === root) ||
+            if (event.touches.length !== 1 || !cards[active]?.contains(target) ||
                 !cards[active]?.contains(current) || !current.matches('input, textarea') ||
                 target.closest('input, textarea, button, a, select, summary, [role="button"]')) return;
             const point = event.touches[0];
@@ -354,7 +354,7 @@
         on('pointerdown', event => {
             const input = event.target;
             if (event.pointerType !== 'touch' || !event.isPrimary ||
-                !(cards[active]?.contains(input) || input === root) || input === document.activeElement) return;
+                !cards[active]?.contains(input) || input === document.activeElement) return;
 
             if (glideFrame) {
                 event.preventDefault();
