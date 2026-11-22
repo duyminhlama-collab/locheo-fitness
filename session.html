@@ -45,7 +45,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
     <!-- Tailwind CSS CDN -->
     <link rel="stylesheet" href="./assets/app.css?v=b5eec10d0ca8">
     <link rel="stylesheet" href="./assets/track-wheel.css?v=8c2811d3f80a">
-    <script defer src="./assets/track-wheel.js?v=1d91e9d0663c"></script>
+    <script defer src="./assets/track-wheel.js?v=e9f08e2186d7"></script>
     <link rel="stylesheet" href="./assets/vendor/fontawesome/css/all.min.css?v=58c6906b737c">
     <script defer src="./assets/offline-storage.js?v=14fdc874c6e6"></script>
     <script defer src="./assets/vendor/chart-4.4.8.umd.js?v=e4cf4d144b22"></script>
@@ -1375,6 +1375,9 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             document.addEventListener('pointerdown', (e) => {
                 const input = document.activeElement;
                 if (!input || !input.matches('input, textarea')) return;
+                // Track handles taps in its input gaps without dismissing the keyboard.
+                const deck = input.closest('#memberExercisesContainer');
+                if (deck && deck.contains(e.target)) return;
                 if (e.target.closest('input, textarea, select, button, a, label, summary, [role="button"], [data-track-drag-handle], [data-routine-drag-handle], [data-library-exercise]')) return;
                 // Consume this gesture: collapsing the hint can move another
                 // input underneath the finger before the browser sends click.
