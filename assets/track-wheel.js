@@ -5,7 +5,7 @@
         navigator.standalone === true || standaloneMode.matches);
     updateAppMode();
     standaloneMode.addEventListener('change', updateAppMode);
-    const WHEEL_THRESHOLD = 40, GESTURE_GAP = 280;
+    const WHEEL_THRESHOLD = 24, GESTURE_GAP = 280;
     let deck, cleanup, refresh;
     const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -269,6 +269,17 @@
                 const distance = Math.max(range.start - projected, 0, projected - range.end);
                 if (distance < nearestDistance) { nearest = index; nearestDistance = distance; }
             });
+            // A short deliberate swipe can advance one card without crossing half
+            // its height. Tall cards still scroll their remaining content first.
+            const displacement = last.dy;
+            const direction = Math.sign(displacement);
+            const originRange = bounds(active);
+            const startedAtEdge = direction > 0
+                ? gesture.top >= originRange.end - 2
+                : gesture.top <= originRange.start + 2;
+            if (nearest === active && Math.abs(displacement) >= 24 && startedAtEdge) {
+                nearest = Math.max(0, Math.min(cards.length - 1, active + direction));
+            }
             if (nearest === active) {
                 const range = bounds(active);
                 scroll(Math.max(range.start, Math.min(range.end, projected)), true, velocity);
@@ -276,9 +287,13 @@
                 choose(nearest, true, velocity);
             }
         }
-        on('touchend', event => endTouch(event, false), {passive: false});
+        on('touchend', event => {
+            if (performance.now() < fieldClickUntil && event.cancelable) event.preventDefault();
+            endTouch(event, false);
+        }, {passive: false});
         on('touchcancel', event => endTouch(event, true));
         on('click', event => {
+            if (performance.now() < fieldClickUntil) { event.preventDefault(); event.stopPropagation(); return; }
             if (event.target.closest('[id^="pred_dropdown_"], [data-transfer-options]')) return;
             if (glideFrame || performance.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); return; }
             const card = event.target.closest('[data-exercise-index]');
@@ -300,7 +315,7 @@
         });
         on('track-reorder-end', () => { suppressClickUntil = performance.now() + 500; layout(); });
         on('track-select-index', event => { update(); layout(); choose(event.detail, false, 0, false); });
-        let noteTap = null;
+        let noteTap = null, fieldClickUntil = 0;
         on('pointerdown', event => {
             const input = event.target;
             if (event.pointerType !== 'touch' || !event.isPrimary ||
@@ -310,14 +325,13 @@
                 event.preventDefault();
                 return;
             }
-            if (input.matches('textarea')) {
-                event.preventDefault();
-                noteTap = { input, id: event.pointerId, x: event.clientX, y: event.clientY };
-                return;
-            }
-            if (!keyboardOpen || !input.matches('input[type="number"], input[data-weight-input], input[data-reps-input]')) return;
+            const field = input.closest('input[data-weight-input], input[data-reps-input], input[type="number"], textarea')
+                || input.closest('[data-set-input-hit-area]')?.querySelector('input');
+            if (!field) return;
+            // Resolve the field once, but focus only after the finger lifts. Changing
+            // advice/keyboard layout on pointerdown can move another control under it.
             event.preventDefault();
-            input.focus({preventScroll: true});
+            noteTap = { input: field, id: event.pointerId, x: event.clientX, y: event.clientY };
         });
         function noteTapMoved(event) {
             return Math.hypot(event.clientX - noteTap.x, event.clientY - noteTap.y) >= 8;
@@ -333,7 +347,11 @@
             const { input } = noteTap;
             const isTap = !noteTapMoved(event);
             noteTap = null;
-            if (isTap && cards[active]?.contains(input)) input.focus({preventScroll: true});
+            if (isTap && cards[active]?.contains(input)) {
+                event.preventDefault();
+                fieldClickUntil = performance.now() + 500;
+                input.focus({preventScroll: true});
+            }
         });
         on('track:after-delete', event => {
             update();
@@ -360,10 +378,12 @@
         controller.signal.addEventListener('abort', restoreCaret, {once: true});
         on('focusin', event => {
             restoreCaret();
-            if (event.target.matches('input, textarea')) {
+            const previous = event.relatedTarget;
+            const switchingField = previous instanceof Element && root.contains(previous) && previous.matches('input, textarea');
+            if (!switchingField && !keyboardOpen && event.target.matches('input, textarea')) {
                 pendingCaret = event.target;
                 pendingCaret.classList.add('track-caret-pending');
-                caretTimer = setTimeout(restoreCaret, 500);
+                caretTimer = setTimeout(restoreCaret, 400);
             }
             const index = cards.indexOf(event.target.closest('[data-exercise-index]'));
             if (index >= 0) { active = index; rememberPosition(); }
@@ -429,6 +449,7 @@
         let restingHeight = viewport?.height || innerHeight;
         let viewportWidth = innerWidth;
         let keyboardOpen = false;
+        let keyboardMotion = null;
         let layoutFrame = 0;
         function scheduleLayout() {
             if (!layoutFrame) layoutFrame = requestAnimationFrame(() => {
@@ -447,7 +468,12 @@
                 // A keyboard type change can briefly grow the viewport.
                 // Keep the editing session until it is almost fully restored.
                 const nextOpen = mobile.matches && editing && lostHeight > (keyboardOpen ? 24 : 55);
-                if (nextOpen !== keyboardOpen) {
+                const changed = nextOpen !== keyboardOpen;
+                const card = changed && !reduced() ? cards[active] : null;
+                const previousTop = card?.getBoundingClientRect().top;
+                if (changed) {
+                    keyboardMotion?.cancel();
+                    keyboardMotion = null;
                     cancelAnimationFrame(glideFrame);
                     glideFrame = 0;
                     setEdgeOffset(0);
@@ -464,9 +490,25 @@
                     document.body.style.removeProperty('--keyboard-top');
                 }
                 layout();
+                if (card) {
+                    const offset = previousTop - card.getBoundingClientRect().top;
+                    if (Math.abs(offset) > 1) keyboardMotion = card.animate(
+                        [{translate: '0 ' + offset + 'px'}, {translate: '0 0px'}],
+                        {duration: 240, easing: 'cubic-bezier(.25,.65,.35,1)', fill: 'backwards'}
+                    );
+                }
             });
         }
-        on('focusout', scheduleLayout);
+        on('focusout', event => {
+            const card = event.target.closest('[data-exercise-index]');
+            requestAnimationFrame(() => {
+                if (!card?.contains(document.activeElement)) {
+                    card?.classList.remove('is-editing-set');
+                    card?.querySelector('[data-set-advice]')?.style.removeProperty('min-height');
+                }
+            });
+            scheduleLayout();
+        });
         viewport?.addEventListener('scroll', scheduleLayout, {signal: controller.signal});
         viewport?.addEventListener('resize', scheduleLayout, {signal: controller.signal});
         window.addEventListener('resize', scheduleLayout, {signal: controller.signal});
@@ -478,7 +520,7 @@
         if (cards.length) scroll(bounds(active).start, false);
         cancelAnimationFrame(frame);
         paint();
-        return {update, destroy() { controller.abort(); cancelAnimationFrame(dragFrame); pendingDrag = null; observer.disconnect(); setEdgeOffset(0); cancelAnimationFrame(frame); cancelAnimationFrame(layoutFrame); cancelAnimationFrame(glideFrame); document.body.classList.remove('track-layout', 'track-keyboard'); document.body.style.removeProperty('--keyboard-top'); document.body.style.removeProperty('--track-height'); }};
+        return {update, destroy() { controller.abort(); keyboardMotion?.cancel(); cancelAnimationFrame(dragFrame); pendingDrag = null; observer.disconnect(); setEdgeOffset(0); cancelAnimationFrame(frame); cancelAnimationFrame(layoutFrame); cancelAnimationFrame(glideFrame); document.body.classList.remove('track-layout', 'track-keyboard'); document.body.style.removeProperty('--keyboard-top'); document.body.style.removeProperty('--track-height'); }};
     }
     function init() {
         const next = document.getElementById('memberExercisesContainer');

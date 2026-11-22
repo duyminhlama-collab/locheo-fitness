@@ -84,7 +84,7 @@ body:not(.track-layout) #appContent h3 i { margin-right:4px; }
 #memberExercisesContainer :where(input,textarea) { caret-color:#6ee7b7; }
 #memberExercisesContainer textarea { width:calc(100% - 10px); margin-inline:5px; border-color:#455970; background:#101b2d; }
 #memberExercisesContainer :is(input, textarea):focus { outline:none !important; --tw-ring-shadow:0 0 #0000; --tw-ring-offset-shadow:0 0 #0000; }
-#memberExercisesContainer [data-exercise-index] input[type="number"]:focus { border-color:#34d399; }
+#memberExercisesContainer [data-exercise-index] :is(input, textarea):focus { border-color:#34d399 !important; }
 #memberExercisesContainer :is(select, button, summary):focus { outline:none !important; border-color:#64748b; --tw-ring-shadow:0 0 #0000; }
 #memberExercisesContainer :is(select, button, summary):focus-visible { outline:2px solid #94a3b8 !important; outline-offset:1px; }
 #trackBottomActions button, #trackBottomActions select { border-radius:12px; }

@@ -176,6 +176,7 @@ body.track-layout .entry-suggestions { transition: none; }
     #mobileNavigationDock button[aria-current="page"] span { color: #fff; }
 }
 
-/* Let keyboard alignment settle before showing the input caret. */
+
+
 .track-deck input.track-caret-pending,
 .track-deck textarea.track-caret-pending { caret-color: transparent !important; }
