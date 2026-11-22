@@ -44,8 +44,8 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
     <!-- Tailwind CSS CDN -->
     <link rel="stylesheet" href="./assets/app.css?v=b5eec10d0ca8">
-    <link rel="stylesheet" href="./assets/track-wheel.css?v=f59c07c8f11c">
-    <script defer src="./assets/track-wheel.js?v=805f905dda77"></script>
+    <link rel="stylesheet" href="./assets/track-wheel.css?v=8c2811d3f80a">
+    <script defer src="./assets/track-wheel.js?v=7ec68ec1030d"></script>
     <link rel="stylesheet" href="./assets/vendor/fontawesome/css/all.min.css?v=58c6906b737c">
     <script defer src="./assets/offline-storage.js?v=14fdc874c6e6"></script>
     <script defer src="./assets/vendor/chart-4.4.8.umd.js?v=e4cf4d144b22"></script>
@@ -212,7 +212,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             box-shadow: 0 0 8px rgba(129,140,248,0);
         }
     </style>
-    <link rel="stylesheet" href="./assets/ui-system.css?v=0c6d32ad0653">
+    <link rel="stylesheet" href="./assets/ui-system.css?v=f38f50dcb9bb">
 </head>
 <body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col">
 
@@ -3570,6 +3570,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             const setIndex = input.closest('tr')?.sectionRowIndex;
             const member = window.appData.members.find(m => m.id === memberId);
             if (!panel || !member || !Number.isInteger(setIndex)) return;
+            card.classList.add('is-editing-set');
+            // Keep the advice slot from collapsing under the finger when the next
+            // set has no history. Reset this minimum when leaving the card.
+            const height = panel.getBoundingClientRect().height;
+            panel.style.minHeight = Math.max(height, parseFloat(panel.style.minHeight) || 0) + 'px';
             if (panel.dataset.setIndex === String(setIndex)) return;
             panel.dataset.setIndex = String(setIndex);
             panel.innerHTML = renderSetAdvice(member, exIndex, setIndex);
