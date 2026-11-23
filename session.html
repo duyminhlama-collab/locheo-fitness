@@ -44,7 +44,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
     <!-- Tailwind CSS CDN -->
     <link rel="stylesheet" href="./assets/app.css?v=b5eec10d0ca8">
-    <link rel="stylesheet" href="./assets/track-wheel.css?v=8c2811d3f80a">
+    <link rel="stylesheet" href="./assets/track-wheel.css?v=3c884942f5cb">
     <script defer src="./assets/track-wheel.js?v=b3c42647b005"></script>
     <link rel="stylesheet" href="./assets/vendor/fontawesome/css/all.min.css?v=58c6906b737c">
     <script defer src="./assets/offline-storage.js?v=14fdc874c6e6"></script>
@@ -155,7 +155,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         .set-advice-row.is-suggestion > span { font-weight: 700; }
         .set-advice-row.is-suggestion .set-advice-rir, .set-advice-row.is-suggestion .set-advice-rm { color: #6ee7b7; }
         .entry-suggestions > .entry-suggestions-content { min-height: 0; overflow: hidden; }
-        [data-exercise-index]:has(input[type="number"]:focus, input[data-weight-input]:focus, input[data-reps-input]:focus, textarea:focus) > .entry-suggestions,
+        [data-exercise-index]:has(input:focus, textarea:focus) > .entry-suggestions,
         [data-exercise-index].is-editing-set > .entry-suggestions,
         [data-exercise-index] > .entry-suggestions:focus-within {
             grid-template-rows: 1fr; opacity: 1; visibility: visible;
@@ -212,7 +212,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             box-shadow: 0 0 8px rgba(129,140,248,0);
         }
     </style>
-    <link rel="stylesheet" href="./assets/ui-system.css?v=f38f50dcb9bb">
+    <link rel="stylesheet" href="./assets/ui-system.css?v=aa1c8c7d2445">
 </head>
 <body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col">
 
@@ -1572,11 +1572,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
         let tabSaveTimer;
         function switchTab(tabId) {
             const isPage = ['overview', 'track', 'library', 'schedule'].includes(tabId);
+            if (isPage && window.appData.activeTab === tabId) return;
             window.appData.activeTab = isPage ? tabId : 'track';
             if (!isPage) activeTrackMemberId = tabId;
             const ids = (window.appData.members || []).map(m => m.id);
             if (!activeTrackMemberId || !ids.includes(activeTrackMemberId)) activeTrackMemberId = ids[0] || null;
-
             renderTabs();
             renderContent();
             clearTimeout(tabSaveTimer);
@@ -1762,10 +1762,11 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 </div>
             `;
 
-            setTimeout(() => {
+            requestAnimationFrame(() => {
+                if (window.appData.activeTab !== 'overview' || !container.querySelector('#chart1RM')) return;
                 renderOverviewCharts(overviewSelectedExercise);
                 render365Heatmap();
-            }, 50);
+            });
         }
 
         function changeOverviewCalendarMember(memId) {
@@ -3567,10 +3568,18 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 (sug ? row('Gợi ý:', sug, true) : '') + row(parts[2] + '/' + parts[1] + ':', previous, false) + '</div>';
         }
 
+        function prepareSetAdvice(card, memberId, exIndex, setIndex = 0) {
+            const panel = card?.querySelector('[data-set-advice]');
+            const member = window.appData.members.find(m => m.id === memberId);
+            if (!panel || !member || panel.dataset.setIndex === String(setIndex)) return;
+            panel.dataset.setIndex = String(setIndex);
+            panel.innerHTML = renderSetAdvice(member, exIndex, setIndex);
+        }
+
         function focusSetAdvice(input, memberId, exIndex) {
             const card = input.closest('[data-exercise-index]');
             const panel = card?.querySelector('[data-set-advice]');
-            const setIndex = input.closest('tr')?.sectionRowIndex;
+            const setIndex = input.closest('tr')?.sectionRowIndex ?? 0;
             const member = window.appData.members.find(m => m.id === memberId);
             if (!panel || !member || !Number.isInteger(setIndex)) return;
             card.classList.add('is-editing-set');
@@ -3578,9 +3587,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
             // set has no history. Reset this minimum when leaving the card.
             const height = panel.getBoundingClientRect().height;
             panel.style.minHeight = Math.max(height, parseFloat(panel.style.minHeight) || 0) + 'px';
-            if (panel.dataset.setIndex === String(setIndex)) return;
-            panel.dataset.setIndex = String(setIndex);
-            panel.innerHTML = renderSetAdvice(member, exIndex, setIndex);
+            prepareSetAdvice(card, memberId, exIndex, setIndex);
         }
 
         // Đặt chế độ từ ngày đang xem trở đi (bấm lại chế độ đang bật để bỏ)
@@ -3662,15 +3669,15 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
                 const exIndex = startIndex + index;
                 const transfer = getStrengthTransfer(member, ex.name, suggestDate);
                 const previousNote = getPreviousExerciseNote(member, ex.name, suggestDate);
-                const sugHtml = `<div data-set-advice data-set-index="0">${renderSetAdvice(member, exIndex, 0)}</div>` + renderStrengthTransfer(member, exIndex, ex.name, suggestDate, transfer);
+                const sugHtml = `<div data-set-advice data-set-index="-1"></div>` + renderStrengthTransfer(member, exIndex, ex.name, suggestDate, transfer);
                 return `
-                    <div data-exercise-index="${exIndex}" data-exercise-name="${escapeAttrValue(ex.name || '')}" onpointerdown="startExerciseReorder(event, '${member.id}', ${exIndex})" oncontextmenu="if(!event.target.closest('input,textarea,select')) event.preventDefault()" class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
+                    <div data-exercise-index="${exIndex}" data-exercise-name="${escapeAttrValue(ex.name || '')}" onpointerenter="if(event.pointerType === 'mouse') prepareSetAdvice(this, '${member.id}', ${exIndex})" onpointerdown="startExerciseReorder(event, '${member.id}', ${exIndex})" oncontextmenu="if(!event.target.closest('input,textarea,select')) event.preventDefault()" class="bg-cardbg border border-slate-500/80 rounded-xl p-2.5 shadow-md space-y-1.5 relative">
                         <div class="flex justify-between items-center gap-2 border-b border-slate-700 pb-2">
                             <div class="flex flex-1 min-w-0 items-center gap-1.5">
                             ${ex.transferFrom ? `<div class="flex-1 min-w-0 max-w-xs bg-slate-900 border border-slate-500 rounded-lg px-2.5 py-1 text-sm font-extrabold text-white" title="Bài trước khi transfer">${escapeTextValue(ex.transferFrom)}</div>` : `
                             <div class="flex-1 min-w-0 max-w-xs relative predictive-input-container">
                                 <input type="text" value="${String(ex.name || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" placeholder="Nhập tên bài tập..." autocomplete="off"
-                                    onfocus="showPredictiveDropdown(this, '${member.id}', ${exIndex})"
+                                    onfocus="focusSetAdvice(this, '${member.id}', ${exIndex}); showPredictiveDropdown(this, '${member.id}', ${exIndex})"
                                     oninput="handlePredictiveInput(this, '${member.id}', ${exIndex})"
                                     onchange="commitExerciseNameInput(this, '${member.id}', ${exIndex})"
                                     onkeydown="if(event.key==='Enter' &amp;&amp; !event.isComposing){event.preventDefault(); commitExerciseNameInput(this, '${member.id}', ${exIndex}, true)}" title="Chọn tên trong gợi ý; tên mới nhấn Enter để lưu"
@@ -3708,7 +3715,7 @@ cách deploy hiện tại. Chỉ thêm comment phân vùng, không đổi logic.
 
                         <div class="text-[11px] font-semibold text-slate-300">
                             <span>Ghi chú</span>
-                            <textarea style="width:calc(100% - 32px);margin-inline:auto" aria-label="Ghi chú" rows="2" maxlength="1000" placeholder="${escapeAttrValue(previousNote ? 'Buổi trước: ' + previousNote : '')}" oninput="updateExerciseNote('${member.id}', '${suggestDate}', ${exIndex}, this.value)" class="block w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-normal text-slate-100 placeholder:text-slate-500 focus:outline-none">${escapeTextValue(ex.note || '')}</textarea>
+                            <textarea onfocus="focusSetAdvice(this, '${member.id}', ${exIndex})" style="width:calc(100% - 32px);margin-inline:auto" aria-label="Ghi chú" rows="2" maxlength="1000" placeholder="${escapeAttrValue(previousNote ? 'Buổi trước: ' + previousNote : '')}" oninput="updateExerciseNote('${member.id}', '${suggestDate}', ${exIndex}, this.value)" class="block w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-normal text-slate-100 placeholder:text-slate-500 focus:outline-none">${escapeTextValue(ex.note || '')}</textarea>
                         </div>
                         <div class="pt-0.5">
                             <button onpointerdown="event.preventDefault()" onclick="addSetToExercise('${member.id}', ${exIndex})" class="h-10 w-28 px-2 py-1 bg-transparent hover:bg-slate-800 text-emerald-400 rounded-lg whitespace-nowrap text-sm font-semibold border border-slate-500 transition">
